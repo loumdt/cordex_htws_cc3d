@@ -1,0 +1,120 @@
+{
+  "esmcat_version":"0.1.0",
+  "id":"CORDEX",
+  "description": "CLIMERI-France CORDEX data catalog.",
+  "catalog_file": "CORDEX.csv.gz",
+  "attributes": [
+    {
+      "column_name": "product",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "domain",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "institute",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "driving_model",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "experiment",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "ensemble",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "rcm_model",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "rcm_version",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "time_frequency",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "variable",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "version",
+      "vocabulary": "http://is-enes-data.github.io/cordex_archive_specifications.pdf"
+    },
+    
+    {
+      "column_name": "period_start",
+      "vocabulary": ""
+    },
+    
+    {
+      "column_name": "period_end",
+      "vocabulary": ""
+    },
+    
+    {
+      "column_name": "climatology",
+      "vocabulary": ""
+    },
+    
+    {
+      "column_name": "latest",
+      "vocabulary": ""
+    }
+    ],
+  "assets": {
+    "column_name": "path",
+    "format": "netcdf"
+  },
+  "aggregation_control": {
+    "variable_column_name": "variable",
+    "groupby_attrs": [
+      "domain",
+      "institute",
+      "driving_model",
+      "experiment",
+      "rcm_model",
+      "time_frequency"
+    ],
+    "aggregations": [
+      {
+        "type": "union",
+        "attribute_name": "variable"
+      },
+      {
+        "type": "join_existing",
+        "attribute_name": "period_start",
+        "options": { 
+          "dim": "time",
+          "coords": "minimal",
+          "compat": "override"
+        }
+      },
+      {
+        "type": "join_new",
+        "attribute_name": "ensemble",
+        "options": { 
+          "coords": "minimal",
+          "compat": "override"
+        }
+      }
+    ]
+  }
+}

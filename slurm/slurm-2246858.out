@@ -1,0 +1,82 @@
+=======================TASK PROLOG================================
+Job 2246858 submitted on cluster spirit from spirit1.ipsl.fr
+Job 2246858 submitted by tmandonnet with account lmd
+Job 2246858 is running with 1 nodes and 6 cores on spirit32-07
+Job 2246858 memory requirements are 81920 MB per node
+Job 2246858 starting at 2025/08/27 20:39:45
+==================================================================
+GCM, RCM, version, RCP : ('ICHEC-EC-EARTH', 'GERICS-REMO2015', 'rcp45', 'v1')
+read_directory_historical : /bdd/CORDEX/output/EUR-11/SMHI/MPI-M-MPI-ESM-LR/historical/r1i1p1/SMHI-RCA4/v1a/day/tas/v20160803
+read_directory_rcp : /bdd/CORDEX/output/EUR-11/GERICS/ICHEC-EC-EARTH/rcp45/r1i1p1/GERICS-REMO2015/v1/day/tas/v20200702
+temp_variable : tas
+start_year_ref : 1971
+end_year_ref : 2020
+Running check_time_consistency for historical directory...
+/bdd/CORDEX/output/EUR-11/SMHI/MPI-M-MPI-ESM-LR/historical/r1i1p1/SMHI-RCA4/v1a/day/tas/v20160803 is time-consistent.
+Running check_time_consistency for RCP directory...
+/bdd/CORDEX/output/EUR-11/GERICS/ICHEC-EC-EARTH/rcp45/r1i1p1/GERICS-REMO2015/v1/day/tas/v20200702 is time-consistent.
+--- 0.13 seconds ---
+Running compute_climatology_smooth...
+  0%|          | 0/9 [00:00<?, ?it/s] 11%|█         | 1/9 [00:06<00:49,  6.13s/it] 22%|██▏       | 2/9 [00:12<00:43,  6.14s/it] 33%|███▎      | 3/9 [00:18<00:36,  6.15s/it] 44%|████▍     | 4/9 [00:24<00:30,  6.15s/it] 56%|█████▌    | 5/9 [00:30<00:24,  6.15s/it] 67%|██████▋   | 6/9 [00:36<00:18,  6.15s/it] 67%|██████▋   | 6/9 [00:44<00:22,  7.49s/it]
+Traceback (most recent call last):
+  File "/home/tmandonnet/.dev_cordex/lib/python3.9/site-packages/xarray/core/dataarray.py", line 4768, in _inplace_binary_op
+    with self.coords._merge_inplace(other_coords):
+  File "/net/nfs/tools/u20/Python/anaconda-2021.11/lib/python3.9/contextlib.py", line 119, in __enter__
+    return next(self.gen)
+  File "/home/tmandonnet/.dev_cordex/lib/python3.9/site-packages/xarray/core/coordinates.py", line 484, in _merge_inplace
+    variables, indexes = merge_coordinates_without_align(
+  File "/home/tmandonnet/.dev_cordex/lib/python3.9/site-packages/xarray/core/merge.py", line 413, in merge_coordinates_without_align
+    merged_coords, merged_indexes = merge_collected(
+  File "/home/tmandonnet/.dev_cordex/lib/python3.9/site-packages/xarray/core/merge.py", line 269, in merge_collected
+    raise MergeError(
+xarray.core.merge.MergeError: conflicting values/indexes on objects to be combined fo coordinate 'rlon'
+first index: PandasIndex(Index([           -28.375,            -28.265,            -28.155,
+                  -28.045,            -27.935,            -27.825,
+                  -27.715,            -27.605,            -27.495,
+                  -27.385,
+       ...
+                   17.165,             17.275, 17.384999999999998,
+       17.494999999999997, 17.604999999999997, 17.715000000000003,
+       17.825000000000003, 17.935000000000002,             18.045,
+                   18.155],
+      dtype='float64', name='rlon', length=424))
+second index: PandasIndex(Index([            -28.375,             -28.265,             -28.155,
+                   -28.045, -27.935000000000002,             -27.825,
+                   -27.715,             -27.605,             -27.495,
+                   -27.385,
+       ...
+                    17.165,              17.275,  17.384999999999998,
+                    17.495,              17.605,              17.715,
+                    17.825,              17.935,  18.044999999999998,
+                    18.155],
+      dtype='float64', name='rlon', length=424))
+first variable: <xarray.IndexVariable 'rlon' (rlon: 424)> Size: 3kB
+array([-28.375, -28.265, -28.155, ...,  17.935,  18.045,  18.155])
+Attributes:
+    standard_name:  grid_longitude
+    long_name:      longitude in rotated pole grid
+    units:          degrees
+    axis:           X
+second variable: <xarray.IndexVariable 'rlon' (rlon: 424)> Size: 3kB
+array([-28.375, -28.265, -28.155, ...,  17.935,  18.045,  18.155])
+Attributes:
+    units:          degrees
+    axis:           X
+    long_name:      longitude in rotated pole grid
+    standard_name:  grid_longitude
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/tmandonnet/CORDEX/run_all.py", line 59, in <module>
+    compute_climatology_smooth(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,interval=interval,temp_variable=temp_variable,smooth_span=smooth_span)
+  File "/home/tmandonnet/CORDEX/detection_overlap_functions.py", line 81, in compute_climatology_smooth
+    climatology += da
+  File "/home/tmandonnet/.dev_cordex/lib/python3.9/site-packages/xarray/core/_typed_ops.py", line 337, in __iadd__
+    return self._inplace_binary_op(other, operator.iadd)
+  File "/home/tmandonnet/.dev_cordex/lib/python3.9/site-packages/xarray/core/dataarray.py", line 4771, in _inplace_binary_op
+    raise MergeError(
+xarray.core.merge.MergeError: Automatic alignment is not supported for in-place operations.
+Consider aligning the indices manually or using a not-in-place operation.
+See https://github.com/pydata/xarray/issues/3910 for more explanations.

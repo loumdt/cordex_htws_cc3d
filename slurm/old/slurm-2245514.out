@@ -1,0 +1,20 @@
+=======================TASK PROLOG================================
+Job 2245514 submitted on cluster spirit from spirit1.ipsl.fr
+Job 2245514 submitted by tmandonnet with account lmd
+Job 2245514 is running with 1 nodes and 22 cores on spirit64-11
+Job 2245514 memory requirements are 81920 MB per node
+Job 2245514 starting at 2025/08/26 23:00:24
+==================================================================
+GCM, RCM, version, RCP : ('NCC-NorESM1-M', 'IPSL-WRF381P', 'rcp85', 'v1')
+read_directory_historical : /bdd/CORDEX/output/EUR-11/IPSL/NCC-NorESM1-M/historical/r1i1p1/IPSL-WRF381P/v1/day/tas/v20190919
+read_directory_rcp : /bdd/CORDEX/output/EUR-11/IPSL/NCC-NorESM1-M/rcp85/r1i1p1/IPSL-WRF381P/v1/day/tas/v20190919
+temp_variable : tas
+start_year_ref : 1951
+end_year_ref : 2020
+Running check_time_consistency for historical directory...
+Traceback (most recent call last):
+  File "/home/tmandonnet/CORDEX/run_all.py", line 44, in <module>
+    if check_time_consistency(read_directory_historical,interval,start_year=1951,end_year=2005) :
+  File "/home/tmandonnet/CORDEX/detection_overlap_functions.py", line 44, in check_time_consistency
+    files_list = [f for f in listdir(read_directory) if isfile(join(read_directory, f))]
+FileNotFoundError: [Errno 2] No such file or directory: '/bdd/CORDEX/output/EUR-11/IPSL/NCC-NorESM1-M/historical/r1i1p1/IPSL-WRF381P/v1/day/tas/v20190919'

@@ -1,0 +1,20 @@
+=======================TASK PROLOG================================
+Job 2194614 submitted on cluster spirit from spirit1.ipsl.fr
+Job 2194614 submitted by tmandonnet with account lmd
+Job 2194614 is running with 1 nodes and 6 cores on spirit32-07
+Job 2194614 memory requirements are 81920 MB per node
+Job 2194614 starting at 2025/08/01 22:52:49
+==================================================================
+GCM, RCM, version, RCP : ('MOHC-HadGEM2-ES', 'KNMI-RACMO22E', 'rcp85', 'v2')
+read_directory_historical : /bdd/CORDEX/output/EUR-11/KNMI/MOHC-HadGEM2-ES/historical/r1i1p1/KNMI-RACMO22E/v2/day/tas/v20160620
+read_directory_rcp : /bdd/CORDEX/output/EUR-11/KNMI/MOHC-HadGEM2-ES/rcp85/r1i1p1/KNMI-RACMO22E/v2/day/tas/v20160705
+temp_variable : tas
+start_year_ref : 1951
+end_year_ref : 2020
+Running check_time_consistency for historical directory...
+/bdd/CORDEX/output/EUR-11/KNMI/MOHC-HadGEM2-ES/historical/r1i1p1/KNMI-RACMO22E/v2/day/tas/v20160620 is time-consistent.
+Running check_time_consistency for RCP directory...
+Traceback (most recent call last):
+  File "/home/tmandonnet/CORDEX/run_all.py", line 53, in <module>
+    raise ValueError(f"{read_directory_rcp} is not time-consistent for start_year {start_year}, end_year {end_year} and interval {interval}.")
+ValueError: /bdd/CORDEX/output/EUR-11/KNMI/MOHC-HadGEM2-ES/rcp85/r1i1p1/KNMI-RACMO22E/v2/day/tas/v20160705 is not time-consistent for start_year 1951, end_year 2100 and interval 5.

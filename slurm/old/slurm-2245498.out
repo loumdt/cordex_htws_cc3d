@@ -1,0 +1,18 @@
+=======================TASK PROLOG================================
+Job 2245498 submitted on cluster spirit from spirit1.ipsl.fr
+Job 2245498 submitted by tmandonnet with account lmd
+Job 2245498 is running with 1 nodes and 22 cores on spirit64-11
+Job 2245498 memory requirements are 81920 MB per node
+Job 2245498 starting at 2025/08/26 22:59:52
+==================================================================
+GCM, RCM, version, RCP : ('CNRM-CERFACS-CNRM-CM5', 'RMIB-UGent-ALARO-0', 'rcp45', 'v1')
+read_directory_historical : /bdd/CORDEX/output/EUR-11/RMIB-UGent/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/RMIB-UGent-ALARO-0/v1/day/tas/v20170207
+read_directory_rcp : /bdd/CORDEX/output/EUR-11/RMIB-UGent/CNRM-CERFACS-CNRM-CM5/rcp45/r1i1p1/RMIB-UGent-ALARO-0/v1/day/tas/v20170207
+temp_variable : tas
+start_year_ref : 1951
+end_year_ref : 2020
+Running check_time_consistency for historical directory...
+Traceback (most recent call last):
+  File "/home/tmandonnet/CORDEX/run_all.py", line 51, in <module>
+    raise ValueError(f"{read_directory_historical} is not time-consistent for start_year {start_year}, end_year {end_year} and interval {interval}.")
+ValueError: /bdd/CORDEX/output/EUR-11/RMIB-UGent/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/RMIB-UGent-ALARO-0/v1/day/tas/v20170207 is not time-consistent for start_year 1951, end_year 2100 and interval 5.

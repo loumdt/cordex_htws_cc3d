@@ -1,0 +1,27 @@
+=======================TASK PROLOG================================
+Job 2245499 submitted on cluster spirit from spirit1.ipsl.fr
+Job 2245499 submitted by tmandonnet with account lmd
+Job 2245499 is running with 1 nodes and 22 cores on spirit64-11
+Job 2245499 memory requirements are 81920 MB per node
+Job 2245499 starting at 2025/08/26 22:59:54
+==================================================================
+GCM, RCM, version, RCP : ('CNRM-CERFACS-CNRM-CM5', 'SMHI-RCA4', 'rcp45', 'v1')
+read_directory_historical : /bdd/CORDEX/output/EUR-11/SMHI/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/SMHI-RCA4/v1/day/tas/v20131026
+read_directory_rcp : /bdd/CORDEX/output/EUR-11/SMHI/CNRM-CERFACS-CNRM-CM5/rcp45/r1i1p1/SMHI-RCA4/v1/day/tas/v20131026
+temp_variable : tas
+start_year_ref : 1951
+end_year_ref : 2020
+Running check_time_consistency for historical directory...
+/bdd/CORDEX/output/EUR-11/SMHI/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/SMHI-RCA4/v1/day/tas/v20131026 is time-consistent with start_year 1971.
+Running check_time_consistency for RCP directory...
+/bdd/CORDEX/output/EUR-11/SMHI/CNRM-CERFACS-CNRM-CM5/rcp45/r1i1p1/SMHI-RCA4/v1/day/tas/v20131026 is time-consistent.
+--- 0.15 seconds ---
+Running compute_climatology_smooth...
+Traceback (most recent call last):
+  File "/home/tmandonnet/CORDEX/run_all.py", line 63, in <module>
+    compute_climatology_smooth(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=1951,end_year_ref=2020,interval=5,temp_variable='tas',smooth_span=15)
+  File "/home/tmandonnet/CORDEX/detection_overlap_functions.py", line 65, in compute_climatology_smooth
+    ds_dict[year] = xr.open_dataset(join(read_directory_historical,find_correct_year_file(read_directory_historical,year,interval)), engine="netcdf4") 
+  File "/home/tmandonnet/CORDEX/detection_overlap_functions.py", line 35, in find_correct_year_file
+    raise FileNotFoundError(f"File not found for year {start_year} and interval {interval} in directory {read_directory}")
+FileNotFoundError: File not found for year 1951 and interval 5 in directory /bdd/CORDEX/output/EUR-11/SMHI/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/SMHI-RCA4/v1/day/tas/v20131026
