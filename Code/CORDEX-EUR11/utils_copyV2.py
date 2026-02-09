@@ -26,55 +26,59 @@ from dask.distributed import Client
 # Have to change value for a different version of CORDEX. 
 split_year = 2005
 
-def create_files_list_to_load(read_directory,start_year=1971,end_year=split_year):
-    """Creates the list of files to load, and checks for the time consistency of the created. By default, it takes historical data time boundaries."""
+def create_files_list_to_load(read_directory_historical=None,read_directory_rcp=None,start_year=1971,end_year=split_year):
+    """Creates the list of files to load, and checks for the time consistency of the created list."""
+    # Create sorted list of all files in directory
+    if read_directory_rcp == None and read_directory_historical == None:
+        raise ValueError("Both read_directory_rcp and read_directory_historical are None. At least one must be defined")
+    elif read_directory_historical == None:
+        existing_files = np.sort(glob.glob(join(read_directory_rcp,"*.nc")))
+    elif read_directory_rcp == None:
+        existing_files = np.sort(glob.glob(join(read_directory_historical,"*.nc")))
+    else:
+        existing_files = np.sort(glob.glob(join(read_directory_historical,"*.nc"))+glob.glob(join(read_directory_rcp,"*.nc")))
+    # Select files matching the study period
+    files_to_load = []
+    for file in existing_files:
+        file_start_year = int(file[-20:-16])
+        file_end_year = int(file[-11:-7])
+        if (file_start_year >= start_year and file_start_year <= end_year) or (file_end_year >= start_year and file_end_year <= end_year):
+            files_to_load.append(str(file))
+    # Check time consistency
+    if len(files_to_load)==0:
+        raise ValueError("files_to_load is empty. Check directories and time boundaries.")
 
-def find_correct_year_file(read_directory,start_year,interval) :
-    files_list = [f for f in listdir(read_directory) if isfile(join(read_directory, f))]
-    pattern = re.compile(f"{start_year}0101-{start_year+interval-1}123[0-1].nc$")
-    counter = 1
-    for file in files_list :
-        match = pattern.search(file)
-        if match is not None :
-            break
-        elif counter==len(files_list) :
-            raise FileNotFoundError(f"File not found for year {start_year} and interval {interval} in directory {read_directory}")
-        counter+=1
-    return file
+    first_file_start_year = int(files_to_load[0][-20:-16])
+    if start_year < first_file_start_year :
+        raise ValueError(f"Start year {start_year} is before beginning of first file {first_file_start_year}.")
+    last_file_end_year = int(files_to_load[-1][-11:-7])
+    if end_year > last_file_end_year :
+        raise ValueError(f"End year {end_year} is after ending of last file {last_file_end_year}.")
 
-def check_time_consistency(read_directory,interval=5,start_year=1971,end_year=split_year) :
-    """Checks that the time intervals are consistent with pre-defined parameters. 
-    Returns True if files present in read_directory are consistent, False otherwise"""
-    #if (end_year-start_year+1)%interval != 0 :
-    #    raise ValueError(f"Incorrect input. Inconsistency between start_year ({start_year}), end_year ({end_year}), and interval ({interval}).")
-    files_list = [f for f in listdir(read_directory) if isfile(join(read_directory, f))]
-    for year in range(start_year,end_year,interval) :
-        pattern = re.compile(f"{year}0101-{year+interval-1}123[0-1].nc$")
-        flag = np.array([not(pattern.search(file) is None) for file in files_list]).any() # flag is True if there is a match for one of the files, False otherwise
-        if not flag :
-            break
-    return flag
+    for i in range(1,len(files_to_load)):
+        previous_file_end_year = int(files_to_load[i-1][-11:-7])
+        file_start_year = int(files_to_load[i][-20:-16])
+        if file_start_year != previous_file_end_year+1 :
+            raise ValueError(f"Time is not consistent in files_to_load. Missing year(s) between {previous_file_end_year} and {file_start_year}.")
+    print(f"Time is consistent between start year {start_year} and end year {end_year}.")
+    return(files_to_load)
 
 def compute_climatology_smooth(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=1971,end_year_ref=2020,interval=5,temp_variable='tas',smooth_span=15) :
     '''This function computes a climatology for each calendar day of the year. The seasonal cycle is then smoothed with a 31-day window. 
     By default, the climatology is computed over 1971-2020.
     This function can be used with several models and variables.'''
 
-    # Create list of years of the beginning of each file
-    year_list = range(start_year_ref,end_year_ref,interval)
-
     #Create list of files to load
-    correct_files_list=[""]*len(year_list)
-    for i in range(len(year_list)) :
-        year = year_list[i]
-        if year<=split_year : # Before split_year, historical run
-            correct_files_list[i] = join(read_directory_historical,find_correct_year_file(read_directory_historical,year_list[i],interval))
-        else : # After split_year, RCP (4.5 or 8.5)
-            correct_files_list[i] = join(read_directory_rcp,find_correct_year_file(read_directory_rcp,year_list[i],interval))
+    files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year_ref,end_year_ref)
 
     # Load multi-file dataset
-    ds = xr.open_mfdataset(correct_files_list, engine='netcdf4', chunks={'time': 1461})
+    #client = Client(n_workers=20, threads_per_worker=2, memory_limit='16GB')
+    #ds = xr.open_mfdataset(fpaths, combine="nested", parallel=True )
+    # https://coecms.github.io/posts/2023-06-22-mfdataset-preprocess.html
+    ds = xr.open_mfdataset(files_to_load, engine='netcdf4', chunks={'time': 1461},data_vars='all')
     da = getattr(ds, temp_variable)
+    # Since files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
+    da = da.sel((da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref))
 
     # Drop Feb 29
     da = da.convert_calendar("noleap")
