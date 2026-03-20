@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --partition=zen4
-#SBATCH --time=2:00:00
+#SBATCH --time=6:00:00
 #SBATCH --mem=32G
 
 source /home/tmandonnet/.gdal_env/bin/activate
 
-for ssp in {2,5}
+for ssp in {1,2,3,4,5}
 do
     echo "SSP ${ssp}"
     for year in {2020..2100..10}
@@ -30,12 +30,12 @@ do
     cdo inttime,2020-01-01,00:00:00,1year /scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_merged.nc /scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc
     rm /scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_merged.nc
 
-    echo "cdo -remapbil Lambert-Conformal"
-    cdo -remapbil,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_Lambert_Conformal.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_Lambert_Conformal.nc"
-    echo "cdo -remapbil Rotated Latitude-Longitude"
-    cdo -remapbil,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_rotated_latitude_longitude.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_latitude_longitude.nc"
-    echo "cdo -remapbil Rotated Pole"
-    cdo -remapbil,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_rotated_pole.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_pole.nc"
+    echo "cdo -remapcon Lambert-Conformal"
+    cdo -remapcon,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_Lambert_Conformal.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_Lambert_Conformal.nc"
+    echo "cdo -remapcon Rotated Latitude-Longitude"
+    cdo -remapcon,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_rotated_latitude_longitude.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_latitude_longitude.nc"
+    echo "cdo -remapcon Rotated Pole"
+    cdo -remapcon,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_rotated_pole.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_pole.nc"
     
     rm "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc"
     echo "Done"
