@@ -63,9 +63,9 @@ def create_files_list_to_load(read_directory_historical=None,read_directory_rcp=
     print(f"Time is consistent between start year {start_year} and end year {end_year}.")
     return(files_to_load)
 
-def compute_climatology_smooth(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',smooth_span=15) :
-    '''This function computes a climatology for each calendar day of the year. The seasonal cycle is then smoothed with a 31-day window. 
-    By default, the climatology is computed over 1971-2025.
+def compute_seasonal_cycle(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax') :
+    '''This function computes a seasonal_cycle for each calendar day of the year. 
+    By default, the seasonal_cycle is computed over 1971-2025.
     This function can be used with several models and variables.'''
 
     #Create list of files to load
@@ -75,8 +75,12 @@ def compute_climatology_smooth(read_directory_historical,read_directory_rcp,writ
         files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year_ref,end_year_ref)
 
     # Load multi-file dataset
-    client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
-    ds = xr.open_mfdataset(files_to_load, engine='netcdf4', chunks={'time': 1461},data_vars='all',parallel=True)
+    #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
+    ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all',chunks={'time': 1461})
+    try:
+        ds = ds.chunk(chunks={'time':len(ds.time),'rlat': 82,'rlon': 84})
+    except:
+        ds = ds.chunk(chunks={'time':len(ds.time),'x': 82,'y': 84})
     da = getattr(ds, temp_variable)
     # Since the files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
@@ -86,30 +90,18 @@ def compute_climatology_smooth(read_directory_historical,read_directory_rcp,writ
     # Drop Feb 29
     da = da.convert_calendar("noleap")
     # Group using dayofyear and sum to compute mean at the end
-    climatology = da.groupby(da.time.dt.dayofyear).mean(dim="time")
-
-    # Smoothing
-    # Handle easily first and last day of year by taking thrice the entire dataset and working on the middle one (avoiding border effects)
-    extended_temp=np.zeros((365*3,np.shape(climatology.data)[1],np.shape(climatology.data)[2]))
-    extended_temp[0:365,:,:]=climatology.data[:,:,:]
-    extended_temp[365:730,:,:]=climatology.data[:,:,:]
-    extended_temp[730:,:,:]=climatology.data[:,:,:]
-
-    print("Smoothing...")
-    #For each day d, compute the mean of the values between day d-smooth_span and d+smooth_span to have a physically realistic seasonal cycle
-    for i in tqdm(range(365,730)):
-        climatology.data[i-365,:,:] = np.nanmean(extended_temp[i-smooth_span:i+smooth_span+1,:,:],axis=0)
+    seasonal_cycle = da.groupby(da.time.dt.dayofyear).mean(dim="time")
 
     # Export data to netcdf file
-    climatology.to_netcdf(join(write_directory,f"{temp_variable}_climatology_{start_year_ref}_{end_year_ref}.nc"))
+    seasonal_cycle.to_netcdf(join(write_directory,f"seasonal_cycle_{start_year_ref}_{end_year_ref}.nc"))
 
     # Clear resources
     da.close()
-    climatology.close()
+    seasonal_cycle.close()
     ds.close()
     return
 
-def compute_distrib_percentile(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',threshold_value=95,distrib_window_size=15,anomaly=False) :
+def compute_distrib_percentile(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',threshold_value=95,distrib_window_size=15,anomaly=True) :
     '''This function computes, for every calendar day, the n-th (n is the threshold_value, default 95) percentile of the corresponding distribution of daily variable. 
     By default, the distribution is computed over 1971-2025.'''
 
@@ -123,28 +115,32 @@ def compute_distrib_percentile(read_directory_historical,read_directory_rcp,writ
         files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year_ref,end_year_ref)
 
     # Load multi-file dataset
-    client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
-    ds = xr.open_mfdataset(files_to_load, engine='netcdf4', chunks={'time': 1461},data_vars='all',parallel=True)
+    #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
+    ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all',chunks={'time': 1461})#,parallel=True)
+    try:
+        ds = ds.chunk(chunks={'time':len(ds.time),'rlat': 82,'rlon': 84})
+    except:
+        ds = ds.chunk(chunks={'time':len(ds.time),'x': 82,'y': 84})
     da = getattr(ds, temp_variable)
     # Since files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
     da = da.sel(time=mask)
     del mask
     
-    # Load climatology file to create output data structure and compute anomaly
-    climatology = xr.open_dataarray(join(write_directory,f"{temp_variable}_climatology_{start_year_ref}_{end_year_ref}.nc"), engine='netcdf4')
+    # Load seasonal_cycle file to create output data structure and compute anomaly
+    seasonal_cycle = xr.open_dataarray(join(write_directory,f"seasonal_cycle_{start_year_ref}_{end_year_ref}.nc"), engine='netcdf4')
 
     # Drop 29 Feb
     da = da.convert_calendar("noleap")
 
-    # Create threshold table by copying climatology table, values will be updated later
-    threshold = climatology.copy()
+    # Create threshold table by copying seasonal_cycle table, values will be updated later
+    threshold = seasonal_cycle.copy()
 
     if anomaly :
         for year in tqdm(range(len(da.time)//365)) : # Iterate over the number of years
-            da[year*365:(year+1)*365,:,:] = da[year*365:(year+1)*365,:,:] - climatology.data # Compute anomaly
+            da[year*365:(year+1)*365,:,:] = da[year*365:(year+1)*365,:,:] - seasonal_cycle.data # Compute anomaly
     else :
-        climatology.close()
+        seasonal_cycle.close()
     
     for day in tqdm(range(1,366)) : # Calendar days ranging from 1 to 365 (no leap years)
         if day - (distrib_window_size//2) <= 0  : # day is at the beginning of January, window overlapping with December
@@ -163,22 +159,22 @@ def compute_distrib_percentile(read_directory_historical,read_directory_rcp,writ
         threshold.data[day-1,:,:] = np.percentile(da.sel(time=mask).data,threshold_value,axis=0)
 
     # Export data to netcdf file
-    threshold.to_netcdf(join(write_directory,f"{temp_variable}_distrib_{'ano_'*anomaly}{start_year_ref}_{end_year_ref}_threshold_{threshold_value}_window_{distrib_window_size}d.nc"))
+    threshold.to_netcdf(join(write_directory,f"distrib_threshold_{threshold_value}.nc"))
 
     # Clear resources
     da.close()
     threshold.close()
     if anomaly :
-        climatology.close()
+        seasonal_cycle.close()
     ds.close()
     return
 
-def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',threshold_value=95,relative_threshold=True,distrib_window_size=15,anomaly=False,nb_days=4,resolution_CORDEX=0.11) :
+def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',threshold_value=95,relative_threshold=True,distrib_window_size=15,anomaly=True,nb_days=4,resolution_CORDEX=0.11,connectivity=26,dust_threshold=775) :
     '''This function carries out a cc3d scan (https://pypi.org/project/connected-components-3d/) to detect heatwaves in the meteorological database (default ERA5, t2m, tg).
     The heatwaves point are labeled with a number corresponding to a heatwave identifier.
     Otherwise, values are set to -9999.'''
     # Set dust threshold to supress small amount of points. The threshold of 775 have been established empirically with ERA5 0.25° (see Mandonnet et al. 2026 https://hal.science/hal-05495839v1), and is translated according to CORDEX resolution, hence the following calculation
-    dust_threshold = int(775 * (0.25/resolution_CORDEX)**2) # resolution_CORDEX is given in °
+    dust_threshold = int(dust_threshold * (0.25/resolution_CORDEX)**2) # resolution_CORDEX is given in °
     
     # Create list of files to load
     if end_year <= split_year: # If all files are in historical directory, ignore rcp directory
@@ -189,13 +185,13 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
         files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year,end_year)
 
     if anomaly :
-        climatology = xr.open_dataarray(join(write_directory,f"{temp_variable}_climatology_{start_year_ref}_{end_year_ref}.nc"), engine='netcdf4')
+        seasonal_cycle = xr.open_dataarray(join(write_directory,f"seasonal_cycle_{start_year_ref}_{end_year_ref}.nc"), engine='netcdf4')
         # Keep only JJA values
-        mask = (climatology.dayofyear>=152) & (climatology.dayofyear<=243) # dayofyear ranges from 1 to 365 ; 152 is June 1st, 243 is August 31st
-        climatology = climatology.sel(dayofyear=mask)
+        mask = (seasonal_cycle.dayofyear>=152) & (seasonal_cycle.dayofyear<=243) # dayofyear ranges from 1 to 365 ; 152 is June 1st, 243 is August 31st
+        seasonal_cycle = seasonal_cycle.sel(dayofyear=mask)
 
     if relative_threshold : # Load temperature threshold for reference period :
-        threshold = xr.open_dataarray(join(write_directory,f"{temp_variable}_distrib_{'ano_'*anomaly}{start_year_ref}_{end_year_ref}_threshold_{threshold_value}_window_{distrib_window_size}d.nc"), engine='netcdf4')
+        threshold = xr.open_dataarray(join(write_directory,f"distrib_threshold_{threshold_value}.nc"), engine='netcdf4')
         # Keep only JJA values
         mask = (threshold.dayofyear>=152) & (threshold.dayofyear<=243) 
         threshold = threshold.sel(dayofyear=mask)
@@ -204,7 +200,7 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
 
     N_labels = 0 # Count the numbers of patterns
     print("Computing cc3d.connected_components labels and dusting...")
-    for file in tqdm(len(files_to_load)):
+    for file in tqdm(files_to_load):
         file_start_year = int(file[-20:-16])
         ds = xr.open_dataset(file,engine='netcdf4')
         da = getattr(ds, temp_variable)
@@ -214,10 +210,10 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
         mask = (da.time.dt.season=='JJA')
         da = da.sel(time=mask)
 
-        for year in range(len(da.time)//365) :# Iterate over the years, number of years depends on the file
+        for year in range(len(da.time)//92) :# Iterate over the years, number of years depends on the file
             da_year = da[year*92:(year+1)*92,:,:]# Select data for the given year
-            if anomaly : # Substract climatology to compute anomaly
-                da_year = da_year - climatology.data
+            if anomaly : # Substract seasonal_cycle to compute anomaly
+                da_year = da_year - seasonal_cycle.data
             da_year = da_year*(da_year>threshold.data)-9999*(da_year<=threshold.data) # Set to -9999 the values that do not exceed threshold
             stack_temp = -9999*np.ones((92,np.shape(da_year)[1],np.shape(da_year)[2])) # Create a 3D array that will hold the temperature values when and where there are heatwaves
             stack_where = np.zeros((np.shape(da_year)[1],np.shape(da_year)[2])) # Create a 2D array that holds the number of consecutive hot days for each location, computed for each day
@@ -228,8 +224,7 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
                     stack_temp[day-(nb_days-1):day+1,:,:] = stack_temp[day-(nb_days-1):day+1,:,:]*(stack_temp[day-(nb_days-1):day+1,:,:]!=-9999)+da_year[day-(nb_days-1):day+1,:,:]*((stack_where>=nb_days)*stack_temp[day-(nb_days-1):day+1,:,:]==-9999)+(-9999*((stack_where<nb_days)*(stack_temp[day-(nb_days-1):day+1,:,:]==-9999))) 
 
             # Compute connected components for the remaining values of stack_temp
-            connectivity = 26 # only 4,8 (2D) and 26, 18, and 6 (3D) are allowed
-            labels_in = cc3d.dust((stack_temp!=-9999),dust_threshold)
+            labels_in = cc3d.dust((stack_temp!=-9999),dust_threshold,connectivity=connectivity)
             labels_out, N_added = cc3d.connected_components(labels_in, connectivity=connectivity,return_N=True) # Return the table of labels and the number of added patterns
             # Initialize output array 
             label = da_year.copy()
@@ -237,13 +232,13 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
             label.data = labels_out + N_labels*(labels_out>0)
 
             #Remove sea heatwaves
-            label.data = remove_sea_heatwaves(read_directory="/data/tmandonnet/CORDEX/sftlf/",labels=label.data,grid_mapping=da.grid_mapping)
-            #label.data = remove_sea_heatwaves(read_directory="/home/user/These/cordex_htws_cc3d/Data/sftlf/",labels=label.data)
+            label.data = remove_sea_heatwaves(read_directory="/data/tmandonnet/CORDEX/sftlf/",labels=label.data,grid_mapping=da.grid_mapping,connectivity=connectivity)
+            #label.data = remove_sea_heatwaves(read_directory="/home/user/These/cordex_htws_cc3d/Data/sftlf/",labels=label.data,grid_mapping=da.grid_mapping,connectivity=connectivity)
 
             # Set DataArray to Dataset to set variable name
             label = label.to_dataset(name="label")
             # Save to netCDF 
-            label.to_netcdf(join(write_directory,f"{temp_variable}_labels_{'ano_'*anomaly}year_{file_start_year+year}_ref_{start_year_ref}_{end_year_ref}_threshold_{threshold_value}_{nb_days}d_window_{distrib_window_size}d.nc"))
+            label.to_netcdf(join(write_directory,f"labels_cc3d_year_{file_start_year+year}_ref_{start_year_ref}_{end_year_ref}.nc"))
 
             # Update N_labels
             N_labels += N_added
@@ -254,26 +249,26 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
     label.close()
     threshold.close()
     if anomaly :
-        climatology.close()
+        seasonal_cycle.close()
     print(N_labels,"heatwaves detected")
     return
 
-def remove_sea_heatwaves(read_directory,labels,grid_mapping,resolution_CORDEX=0.11,land_area_fraction_threshold=0.5) :
+def remove_sea_heatwaves(read_directory,labels,grid_mapping,resolution_CORDEX=0.11,land_area_fraction_threshold=0.5,connectivity=26,dust_threshold=775) :
     '''
     '''
     # Set dust threshold to supress small amount of points. The threshold of 775 have been established with ERA5 0.25°, and is translated according to CORDEX resolution, hence the following calculation
-    dust_threshold = int(775 * (0.25/resolution_CORDEX)**2) # resolution_CORDEX is given in °
+    dust_threshold = int(dust_threshold * (0.25/resolution_CORDEX)**2) # resolution_CORDEX is given in °
 
     land_area_fraction = xr.open_dataset(join(read_directory,f"CORDEX_EUR-11_land_area_fraction_{grid_mapping}.nc"),engine='netcdf4').sftlf
-    if np.max(land_area_fraction)==100 : # Have to check if land_area_fraction ranges from 0 to 100% or from 0 to 1
-        land_area_fraction_threshold /= 100
+    if np.max(land_area_fraction)==100 : # Have to check if land_area_fraction ranges from 0 to 100 or from 0 to 1
+        land_area_fraction_threshold *= 100
 
     # Remove sea points
     labels = labels * (land_area_fraction.data>=land_area_fraction_threshold)
 
     # Remove small heatwaves with the cc3d dust function
-    connectivity = 26 # only 4,8 (2D) and 26, 18, and 6 (3D) are allowed
-    labels = labels * cc3d.dust((labels>0),dust_threshold)
+     # only 4,8 (2D) and 26, 18, and 6 (3D) are allowed
+    labels = labels * cc3d.dust((labels>0),dust_threshold,connectivity=connectivity)
     return labels
 
 def compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,start_year_ref=1986,end_year_ref=2005,temp_variable='tasmax',ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1]) :
@@ -295,16 +290,16 @@ def compute_regional_warming_levels(read_directory_historical,read_directory_rcp
         files_to_load[i] = tas_file
 
     # Load multi-file dataset
-    client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
-    ds = xr.open_mfdataset(files_to_load, engine='netcdf4', chunks={'time': 1461},data_vars='all',parallel=True)
+    #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
+    ds = xr.open_mfdataset(files_to_load, engine='netcdf4',chunks={'time': 1461},data_vars='all')
     # Variable is necessarily 'tas' for the computation of warming levels
     da = ds.tas
     # Since files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
-    mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
+    mask = (da.time.dt.year>=start_year) & (da.time.dt.year<=end_year)
     da = da.sel(time=mask)
     del mask
     da = da.groupby(da.time.dt.year).mean() # Compute annual mean
-
+    da = da.chunk(chunks={'year':len(da.year)})
     # Create reference period (default 1986-2005) average
     mask = (da.year >= start_year_ref)&(da.year <= end_year_ref)
     da_ref = da.sel(year=mask)
@@ -326,7 +321,8 @@ def compute_regional_warming_levels(read_directory_historical,read_directory_rcp
         da_ref = da_ref.mean(("x","y")) # one single value
         
     da_weighted = da_weighted - da_ref # 1D-array of annual values reprenting the european warming since the reference period (default 1986-2005)
-    
+    da_weighted = da_weighted.compute()
+
     # Create dictionary to hold the data of
     warming_levels_dict = {}
     for level in regional_warming_levels_list :
@@ -345,8 +341,8 @@ def compute_regional_warming_levels(read_directory_historical,read_directory_rcp
     return
 
 #%%
-def compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,temp_variable='tasmax',distrib_window_size=15,anomaly=False) :
-    """Compute the pseudo_HWMId index map.
+def compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax'):
+    """Compute the HWMId index.
     Based on HWMId defined by Russo et al (2015, https://dx.doi.org/10.1088/1748-9326/10/12/124003 )."""
 
     # Create list of files to load
@@ -358,27 +354,26 @@ def compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_direc
         files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year,end_year)
 
     # Load multi-file dataset
-    client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
-    ds = xr.open_mfdataset(files_to_load, engine='netcdf4', chunks={'time': 1461},data_vars='all',parallel=True)
+    #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
+    ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all')#,parallel=True)
+    try:
+        ds = ds.chunk(chunks={'time':len(ds.time),'rlat': 82,'rlon': 84})
+    except:
+        ds = ds.chunk(chunks={'time':len(ds.time),'x': 82,'y': 84})
     # Drop Feb 29 and only keep JJA days and years of interest
     ds = ds.convert_calendar("noleap")
-    mask = (ds.time.dt.year>=start_year_ref) & (ds.time.dt.year<=end_year_ref)
+    mask = (ds.time.dt.year>=start_year) & (ds.time.dt.year<=end_year)
     ds = ds.sel(time=mask)
-    ds = ds.sel(time=(da.time.dt.season=='JJA'))
-    ds = ds.chunk(chunks={'time': 368})
     da = getattr(ds,temp_variable)
+    mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
+    da_ref = da.sel(time=mask)
+    da = da.sel(time=(da.time.dt.season=='JJA'))
     
-    if anomaly :
-        climatology = xr.open_dataarray(join(write_directory,f"{temp_variable}_climatology_{start_year_ref}_{end_year_ref}.nc"), engine='netcdf4')
-        # Keep only JJA values
-        mask = (climatology.dayofyear>=152) & (climatology.dayofyear<=243) # dayofyear ranges from 1 to 365 ; 152 is June 1st, 243 is August 31st
-        climatology = climatology.sel(dayofyear=mask)
-        da = da - climatology
     del mask
     
     # Compute values needed for HWMId
-    temp_25p = np.percentile(da.groupby(da.time.dt.year).max(), 25, axis=0)
-    temp_75p = np.percentile(da.groupby(da.time.dt.year).max(), 75, axis=0)
+    temp_25p = np.percentile(da_ref.groupby(da_ref.time.dt.year).max(), 25, axis=0)
+    temp_75p = np.percentile(da_ref.groupby(da_ref.time.dt.year).max(), 75, axis=0)
 
     # Copy da to create output data structure
     Russo_HWMId = da.copy()
@@ -392,15 +387,18 @@ def compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_direc
     Russo_HWMId.close()
     da.close()
     ds.close()
-    if anomaly :
-        climatology.close()
     return
 
-def create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',threshold_value=95,relative_threshold=True,distrib_window_size=15,anomaly=False,nb_days=4,resolution_CORDEX=0.11):
+def create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,start_year=1971,end_year=2099,start_year_ref=1971,end_year_ref=2025,temp_variable='tasmax',threshold_value=95,relative_threshold=True,distrib_window_size=15,anomaly=True,nb_days=4,resolution_CORDEX=0.11):
     '''This function is used to create the dataset of the indices of the detected heatwaves. The set of detected heatwaves depends on all the parameters.'''
 
     # Account for the fact that RWL can overlap. Create 4 RWL columns to avoid edge cases but RWL_3 and RWL_4 should remain empty
     RWL_col_dict = {1:"RWL_1",2:"RWL_2",3:"RWL_3",4:"RWL_4"}
+
+    with open(join(write_directory,'regional_warming_levels.json'), 'r') as f:
+        RWL_dict = json.load(f)
+
+    grdi_mapping = xr.open_dataset(join(write_directory,f"labels_cc3d_year_{start_year}_ref_{start_year_ref}_{end_year_ref}.nc"), engine="netcdf4").label.grid_mapping
 
     # Create list of computed years (only the years that match a RWL period)
     RWL_years = []
@@ -408,18 +406,51 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
         if RWL_dict[k] is not None :
             RWL_years += list(range(RWL_dict[k]["start_year"],RWL_dict[k]["end_year"]))
     RWL_years = np.unique(RWL_years)
-    df_heatwaves = pd.DataFrame(data=None,columns=["Year","RWL_1","RWL_2","RWL_3","RWL_4","Mean","Max","Duration","Spatial Extent","Temp sum", "Pseudo_HWMId"]) # Create DataFrame
+    df_heatwaves = pd.DataFrame(data=None,columns=['Year','Start Date','End Date','RWL_1','RWL_2','RWL_3','RWL_4','Intensity','Spatial extent','Duration','Max','HWMId_sum','Exposed_population','HWMId_pop']) # Create DataFrame
     
+    # Create list of temperature files to load
+    if end_year <= split_year: # If all files are in historical directory, ignore rcp directory
+        files_to_load = create_files_list_to_load(read_directory_historical=read_directory_historical,read_directory_rcp=None,start_year=start_year,end_year=end_year)
+    elif start_year > split_year: # If all files are in rcp directory, ignore historical directory
+        files_to_load = create_files_list_to_load(read_directory_historical=None,read_directory_rcp=read_directory_rcp,start_year=start_year,end_year=end_year)
+    else:
+        files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year,end_year)
+
+    ssp_file_dict = {}
+    for ssp in range(1,6):
+        ssp_file_dict[f"SSP{ssp}"] = join(write_directory,"../..","FPOP",f"FPOP_SSP{ssp}")
+
     # TO DO: Must population temperature file !!!!!!!!!!
     
     for year in RWL_years : # Iterate over the years that match a RWL period
-        ds_labels = xr.open_dataset(join(write_directory,f"{temp_variable}_labels_{'ano_'*anomaly}year_{year}_ref_{start_year_ref}_{end_year_ref}_threshold_{threshold_value}_{nb_days}d_window_{distrib_window_size}d.nc"), engine="netcdf4") # Load the corresponding nc file
+        ds_labels = xr.open_dataset(join(write_directory,f"labels_cc3d_year_{file_start_year+year}_ref_{start_year_ref}_{end_year_ref}.nc"), engine="netcdf4") # Load the corresponding nc file
         da_labels = ds_labels.label
-
         # TO DO: Must load temperature file !!!!!!!!!!
-        
-        
+        loaded_temp_file = None
+        old_loaded_temp_file = None
+        found_temp_file = False
+        i = 0
+        while i<len(files_to_load) and (found_temp_file==False): # Find the file containing the given year
+            file_start_year = int(files_to_load[i][-20:-16])
+            file_end_year = int(files_to_load[i][-11:-7])
+            if year>=file_start_year and year<=file_end_year :
+                loaded_temp_file = files_to_load[i]
+                found_temp_file = True
+            i+=1
+        if found_temp_file:
+            if loaded_temp_file != old_loaded_temp_file: # Only load file if change of file
+                ds_temp = xr.open_dataset(loaded_temp_file,engine='netcdf4')
+                print("New file")
+                print(found_temp_file,file)
+            old_loaded_temp_file  = loaded_temp_file # Update old_loaded_temp_file value for next iteration
+            da_temp = getattr(ds, temp_variable)
+            mask = (da_temp.time.dt.year==year)
+            da_temp = da_temp.sel(time=mask)
+        else: # If file not found, raise error
+            raise ValueError(f"File not found for year {year} in following list of files:\n{files_to_load}")
 
+        
+        # TO DO !!!! Have to check that skipping first label is ok, perhaps only for first file only but not after since labels are not reset to 0-1 at each file
         for label in np.unique(da_labels)[1:] : # Iterate over the heatwaves (one label = one heatwave). Skip the first item which is always 0, not a heatwave
             df_heatwaves.loc[label,"Year"]=Year
             # Find the corresponding RWL(s)
@@ -436,8 +467,8 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
     f_land_sea_mask = nc.Dataset(os.path.join(datadir,database,"Mask",f"Mask_Europe_land_only_{database}_{resolution}deg.nc"),mode='r')
     land_sea_mask = f_land_sea_mask.variables['mask'][:]
 
-    f_temp = nc.Dataset(os.path.join(datadir,database,datavar,f"{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_JJA_{year_beg}_{year_end}_climatology_{year_beg_climatology}_{year_end_climatology}_{distrib_window_size}days.nc"),mode='r')
-    f_Russo_HWMId = nc.Dataset(os.path.join(datadir,database,datavar,f"Russo_HWMId_{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_{year_beg_climatology}_{year_end_climatology}_{distrib_window_size}days.nc.nc"),mode='r')#path to the output netCDF file
+    f_temp = nc.Dataset(os.path.join(datadir,database,datavar,f"{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_JJA_{year_beg}_{year_end}_seasonal_cycle_{year_beg_seasonal_cycle}_{year_end_seasonal_cycle}_{distrib_window_size}days.nc"),mode='r')
+    f_Russo_HWMId = nc.Dataset(os.path.join(datadir,database,datavar,f"Russo_HWMId_{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_{year_beg_seasonal_cycle}_{year_end_seasonal_cycle}_{distrib_window_size}days.nc.nc"),mode='r')#path to the output netCDF file
     f_gdp_cap = nc.Dataset(os.path.join(datadir,database,"Socio_eco_maps",f"GDP_cap_{database}_Europe_{resolution}deg.nc"),mode='r')#path to the output netCDF file
     
     f_pop_GHS_1975 = nc.Dataset(os.path.join(datadir,"Pop","GHS_POP",f"GHS_POP_1975_{database}_grid_Europe.nc"))
@@ -455,8 +486,8 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
     #Redirect the different years towards the correct (nearest in time) population data file :
 
     output_dir = os.path.join("Output",database,f"{datavar}_{daily_var}",
-                            f"{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_JJA_{nb_days}days_before_scan_{year_beg}_{year_end}_{threshold_value}{name_dict_threshold[relative_threshold]}_{distrib_window_size}days_window_climatology_{year_beg_climatology}_{year_end_climatology}")
-    df_htw = pd.read_excel(os.path.join(output_dir,f"df_htws_V0_detected_{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_JJA_{nb_days}days_before_scan_{year_beg}_{year_end}_{threshold_value}{name_dict_threshold[relative_threshold]}_{distrib_window_size}days_window_climatology_{year_beg_climatology}_{year_end_climatology}.xlsx"),header=0,index_col=0)
+                            f"{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_JJA_{nb_days}days_before_scan_{year_beg}_{year_end}_{threshold_value}{name_dict_threshold[relative_threshold]}_{distrib_window_size}days_window_seasonal_cycle_{year_beg_seasonal_cycle}_{year_end_seasonal_cycle}")
+    df_htw = pd.read_excel(os.path.join(output_dir,f"df_htws_V0_detected_{database}_{datavar}_{daily_var}_{name_dict_anomaly[anomaly]}_JJA_{nb_days}days_before_scan_{year_beg}_{year_end}_{threshold_value}{name_dict_threshold[relative_threshold]}_{distrib_window_size}days_window_seasonal_cycle_{year_beg_seasonal_cycle}_{year_end_seasonal_cycle}.xlsx"),header=0,index_col=0)
     #--------------------------
 
     htw_criteria = ['Global_mean','Spatial_extent','Duration','Max','Max_spatial','Temp_sum','Pseudo_HWMId','Total_affected_pop','Global_mean_pop','Duration_pop','Max_pop','Max_spatial_pop',
