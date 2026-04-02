@@ -31,11 +31,11 @@ do
     rm /scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_merged.nc
 
     echo "cdo -remapcon Lambert-Conformal"
-    cdo -remapcon,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_Lambert_Conformal.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_Lambert_Conformal.nc"
+    cdo -remapcon,/bdd/CORDEX/output/EUR-11/CNRM/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/CNRM-ALADIN63/v2/day/tasmax/latest/tasmax_EUR-11_CNRM-CERFACS-CNRM-CM5_historical_r1i1p1_CNRM-ALADIN63_v2_day_19510101-19551231.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_Lambert_Conformal.nc"
     echo "cdo -remapcon Rotated Latitude-Longitude"
     cdo -remapcon,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_rotated_latitude_longitude.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_latitude_longitude.nc"
     echo "cdo -remapcon Rotated Pole"
-    cdo -remapcon,/data/tmandonnet/CORDEX/sftlf/CORDEX_EUR-11_land_area_fraction_rotated_pole.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_pole.nc"
+    cdo -remapcon,/bdd/CORDEX/output/EUR-11/IPSL/IPSL-IPSL-CM5A-MR/rcp85/r1i1p1/IPSL-WRF381P/v1/day/tasmax/v20190919/tasmax_EUR-11_IPSL-IPSL-CM5A-MR_rcp85_r1i1p1_IPSL-WRF381P_v1_day_20910101-20951231.nc "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc" "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100_rotated_pole.nc"
     
     rm "/scratchu/tmandonnet/FPOP/FPOP_SSP${ssp}/FPOP_SSP${ssp}_2020_2100.nc"
     echo "Done"
