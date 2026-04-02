@@ -15,16 +15,5 @@ with open('/home/tmandonnet/CORDEX/CORDEX_pairs_path_dict.json', 'r') as f:
 
 loaded_dict = json_loads_dictionary(data)
 
-#with open('/home/tmandonnet/CORDEX/succeded_combination.txt') as f:
-#    lines = f.readlines()
-
 for k,v in loaded_dict.items() :
-    #count = 0
-    #flag = True
-    #while flag and count<len(lines):
-    #    if str((k[0], k[1], k[2], k[3])) in lines[count] :
-    #        flag=False
-    #        break
-    #    count+=1
-    #if flag :
     os.system(f"sbatch cordex_job.sh {k[0]} {k[1]} {k[2]} {k[3]} {v['historical']} {v['rcp']}")  
