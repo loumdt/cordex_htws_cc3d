@@ -49,34 +49,42 @@ if __name__ == "__main__":
     print('start_year_ref :',start_year_ref)
     print('end_year_ref :',end_year_ref)
 
+    overwrite_files=False #If True, overwrite output files that already exists (may be relevant in case of code or data update)
+    # if overwrite_file is True or if output file does not exist : call function ; else pass
     #%% Compute climatology smooth
-    print("--- %.2f seconds ---" % (time.time() - start_time))
-    print("Running compute_seasonal_cycle...")
-    #compute_seasonal_cycle(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable)
-    print("Done.")
-    print("--- %.2f seconds ---" % (time.time() - start_time))
+    if (overwrite_files or exists(join(write_directory,f"seasonal_cycle_{start_year_ref}_{end_year_ref}.nc"))==False):
+        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("Running compute_seasonal_cycle...")
+        compute_seasonal_cycle(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable)
+        print("Done.")
     #%% Compute distribution of reference period and threshold
-    print("Running compute_distrib_percentile...")
-    #compute_distrib_percentile(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,distrib_window_size=distrib_window_size,anomaly=anomaly)
-    print("Done.")
-    print("--- %.2f seconds ---" % (time.time() - start_time))
+    if (overwrite_files or exists(join(write_directory,f"distrib_threshold_{threshold_value}.nc"))==False) and relative_threshold==True: # Only used for relative thresholds
+        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("Running compute_distrib_percentile...")
+        compute_distrib_percentile(read_directory_historical,read_directory_rcp,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,distrib_window_size=distrib_window_size,anomaly=anomaly)
+        print("Done.")
     #%% Compute heatwaves CC3D scan
-    print("Running cc3d_scan_heatwaves...")
-    cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_directory,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,relative_threshold=True,distrib_window_size=distrib_window_size,anomaly=anomaly,nb_days=nb_days)
-    print("Done.")
-    print("--- %.2f seconds ---" % (time.time() - start_time))
+    if overwrite_files or exists(join(write_directory,f"labels_cc3d_year_{end_year}_ref_{start_year_ref}_{end_year_ref}.nc"))==False:
+        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("Running cc3d_scan_heatwaves...")
+        cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_directory,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,relative_threshold=True,distrib_window_size=distrib_window_size,anomaly=anomaly,nb_days=nb_days)
+        print("Done.")
     #%% Compute Regional Warming Level periods
-    print("Running compute_regional_warming_levels ...")
-    #compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=start_year,end_year=end_year,start_year_ref=1986,end_year_ref=2005,ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1])
-    print("Done.")
-    print("--- %.2f seconds ---" % (time.time() - start_time))
+    if overwrite_files or exists(join(write_directory,"regional_warming_levels.json"))==False:
+        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("Running compute_regional_warming_levels ...")
+        compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=start_year,end_year=end_year,start_year_ref=1986,end_year_ref=2005,ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1])
+        print("Done.")
     #%% Compute HWMId index
-    print("Running compute_Russo_HWMId ...")
-    #compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_directory,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable)
-    print("Done.")
-    print("--- %.2f seconds ---" % (time.time() - start_time))
+    if overwrite_files or exists(join(write_directory,"Russo_HWMId.nc"))==False:
+        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("Running compute_Russo_HWMId ...")
+        compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_directory,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable)
+        print("Done.")
     #%% Compute Heatwaves indices database
-    print("Running create_heatwaves_indices_database ...")
-    create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,anomaly=True)
-    print("Done.")
+    if overwrite_files or exists(join(write_directory,"df_htws.csv"))==False:
+        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("Running create_heatwaves_indices_database ...")
+        create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,pop_data_path,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,anomaly=True)
+        print("Done.")
     print("--- %.2f seconds ---" % (time.time() - start_time))
