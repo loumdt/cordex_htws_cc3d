@@ -77,11 +77,11 @@ def compute_seasonal_cycle(read_directory_historical,read_directory_rcp,write_di
     # Load multi-file dataset
     #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
     ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all',chunks={'time': 1461})
-    try:
-        ds = ds.chunk(chunks={'time':len(ds.time),'rlat': 82,'rlon': 84})
-    except:
-        ds = ds.chunk(chunks={'time':len(ds.time),'x': 82,'y': 84})
     da = getattr(ds, temp_variable)
+    try:
+        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
+    except:
+        da = da.chunk(chunks={'time':len(da.time),'x': 82,'y': 84})
     # Since the files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
     da = da.sel(time=mask)
@@ -117,11 +117,11 @@ def compute_distrib_percentile(read_directory_historical,read_directory_rcp,writ
     # Load multi-file dataset
     #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
     ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all',chunks={'time': 1461})#,parallel=True)
-    try:
-        ds = ds.chunk(chunks={'time':len(ds.time),'rlat': 82,'rlon': 84})
-    except:
-        ds = ds.chunk(chunks={'time':len(ds.time),'x': 82,'y': 84})
     da = getattr(ds, temp_variable)
+    try:
+        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
+    except:
+        da = da.chunk(chunks={'time':len(da.time),'x': 82,'y': 84})
     # Since files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
     da = da.sel(time=mask)
@@ -355,15 +355,15 @@ def compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_direc
     # Load multi-file dataset
     #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
     ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all')#,parallel=True)
-    try:
-        ds = ds.chunk(chunks={'time':len(ds.time),'rlat': 82,'rlon': 84})
-    except:
-        ds = ds.chunk(chunks={'time':len(ds.time),'x': 82,'y': 84})
-    # Drop Feb 29 and only keep JJA days and years of interest
-    ds = ds.convert_calendar("noleap")
-    mask = (ds.time.dt.year>=start_year) & (ds.time.dt.year<=end_year)
-    ds = ds.sel(time=mask)
     da = getattr(ds,temp_variable)
+    try:
+        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
+    except:
+        da = da.chunk(chunks={'time':len(da.time),'x': 82,'y': 84})
+    # Drop Feb 29 and only keep JJA days and years of interest
+    da = da.convert_calendar("noleap")
+    mask = (da.time.dt.year>=start_year) & (da.time.dt.year<=end_year)
+    da = da.sel(time=mask)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
     da_ref = da.sel(time=mask)
     da = da.sel(time=(da.time.dt.season=='JJA'))
