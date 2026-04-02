@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --partition=zen4
-#SBATCH --time=6:00:00
+#SBATCH --time=24:00:00
 #SBATCH --mem=32G
 
 source /home/tmandonnet/.gdal_env/bin/activate
