@@ -3,9 +3,9 @@ import numpy as np
 import sys
 from tqdm import tqdm # Create a user-friendly feedback for loops while script is running
 import os
-from os.path import join
+from os.path import join,exists
 from utils import *
-import time    
+import time
 if __name__ == "__main__":
     #%% Read variables and directories
     start_time = time.time()
@@ -45,9 +45,12 @@ if __name__ == "__main__":
     print('GCM, RCM, RCP, version :',combination)
     print('read_directory_historical :',read_directory_historical)
     print('read_directory_rcp :',read_directory_rcp)
-    print('temp_variable :',temp_variable)
-    print('start_year_ref :',start_year_ref)
-    print('end_year_ref :',end_year_ref)
+    print("temp_variable:", temp_variable)
+    print("nb_days:", nb_days)
+    print("threshold_value:", threshold_value)
+    print("connectivity:", connectivity)
+    print(f"study period: {start_year}-{end_year}")
+    print(f"baseline period: {start_year_ref}-{end_year_ref}")
 
     overwrite_files=False #If True, overwrite output files that already exists (may be relevant in case of code or data update)
     # if overwrite_file is True or if output file does not exist : call function ; else pass
