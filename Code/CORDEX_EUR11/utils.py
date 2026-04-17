@@ -5,7 +5,7 @@ import netCDF4 as nc #load and write netcdf data
 from datetime import date, timedelta, datetime #create file history with creation date
 from tqdm import tqdm #create a user-friendly feedback while script is running
 from os import listdir
-from os.path import isfile, join
+from os.path import isfile, join, isdir, exists
 import re #Use RegEx 
 import pandas as pd #handle dataframes
 import cc3d #connected components patterns
@@ -21,6 +21,7 @@ import json
 import glob
 import dask
 from dask.distributed import Client
+from plots import *
 
 # Split year is the last year of the historical period. In CORDEX runs based on CMIP5 experiment, it is 2005.
 # Have to change value for a different version of CORDEX. 
@@ -194,7 +195,7 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
     if original_calendar=='360_day':
         JJA_beg = 151 #150 is June 1st, 240 is August 30th
         JJA_end = 240
-    else:
+    else: # noleap calendar
         JJA_beg = 152 #152 is June 1st, 243 is August 31st
         JJA_end = 243
 
@@ -427,13 +428,14 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
         files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year,end_year)
 
     original_calendar = getattr(xr.open_dataset(files_to_load[0], engine="netcdf4"),temp_variable).time.dt.calendar
-    da_threshold = xr.open_dataarray(join(write_directory,f"distrib_threshold_{threshold_value}.nc"),engine='netcdf4')
     if original_calendar=='360_day':
-        JJA_beg = 151 #150 is June 1st, 240 is August 30th
+        JJA_beg = 151 #151 is June 1st, 240 is August 30th
         JJA_end = 240
-    else:
-        JJA_beg = 152 #151 is June 1st, 243 is August 31st
+    else: # noleap calendar
+        JJA_beg = 152 #152 is June 1st, 243 is August 31st
         JJA_end = 243
+
+    da_threshold = xr.open_dataarray(join(write_directory,f"distrib_threshold_{threshold_value}.nc"),engine='netcdf4')
     mask = (da_threshold.dayofyear>=JJA_beg) & (da_threshold.dayofyear<=JJA_end) # dayofyear ranges from 1 to 365 (or 360)
     da_threshold = da_threshold.sel(dayofyear=mask)
 
@@ -460,14 +462,14 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
     'Intensity','Spatial extent','Duration','Max','HWMId_sum',
     'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1',
     'Exposed_population_ssp2','HWMId_pop_ssp2','Exposed_population_ssp3','HWMId_pop_ssp3',
-    'Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5','GCM','RCM','simulation','version','ensemble']) # Create DataFrame
+    'Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5','GCM','RCM','simulation','version','ensemble','version_date','calendar','bias-adjusted']) # Create DataFrame
 
     # Initialize variables used to find the correct temperature file to load for each year
     loaded_temp_file = None
     old_loaded_temp_file = None
 
-    # Compute weights for latitude-weighted mean
-    weights = np.cos(np.deg2rad(da_HWMId.lat))
+    # Compute weights for area-weighted mean
+    weights = da_cell_area
     weights.name = "weights"
 
     for year in tqdm(range(start_year,end_year+1)): # Iterate over the years
@@ -538,7 +540,12 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
             if year<=2030: #GHS-POP covers 1975-2030
                 da_pop = ds_ghs_pop.Band1*1000 # Data is originally in thousands of people
                 da_pop_htw = da_pop.sel(time=(da_pop.time.dt.year==year))
-                da_pop_density_htw = da_pop_htw/da_cell_area # Population density in thousands of person/km²
+                # Workaround bug in da_pop_htw in some cases
+                pop_copy = (da_temp.isel(time=0)).copy()
+                pop_copy.data = da_pop_htw.data[0]
+                da_pop_htw = pop_copy
+
+                da_pop_density_htw = da_pop_htw/da_cell_area.data # Population density in thousands of person/km²
                 da_pop_htw = da_pop_htw.where(labels_bool_2D,drop=True)
                 da_pop_density_htw = da_pop_density_htw.where(labels_bool_2D,drop=True)
                 df_htws.loc[label,f'Exposed_population_ghs'] = da_pop_htw.sum().data/1e3 # Compute population in thousands to avoid later memory issues with bootstrap and MK test 
@@ -553,15 +560,17 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
                     df_htws.loc[label,f'Exposed_population_ssp{ssp}'] = da_pop_htw.sum().data/1e3 # Compute population in thousands to avoid later memory issues with bootstrap and MK test 
                     df_htws.loc[label,f'HWMId_pop_ssp{ssp}'] = (da_HWMId_htw*da_pop_density_htw.data).weighted(weights).sum().data
             if year <= split_year:
-                df_htws['simulation'] = read_directory_historical.split("/")[-7]
+                df_htws['simulation'] = "historical"
             else:
-                df_htws['simulation'] = read_directory_rcp.split("/")[-7]
+                df_htws['simulation'] = read_directory_rcp.split("/")[-7] #rcp45 or rcp85
     
-    df_htws['GCM'] = read_directory_historical.split("/")[-8]
-    df_htws['RCM'] = read_directory_historical.split("/")[-5]
-    df_htws['version'] = read_directory_historical.split("/")[-4]
-    df_htws['ensemble'] = read_directory_historical.split("/")[-6]
-    df_htws['version_date'] = read_directory_historical.split("/")[-1]
+    df_htws.loc[:,'GCM'] = read_directory_historical.split("/")[-8]
+    df_htws.loc[:,'RCM'] = read_directory_historical.split("/")[-5]
+    df_htws.loc[:,'version'] = read_directory_historical.split("/")[-4]
+    df_htws.loc[:,'ensemble'] = read_directory_historical.split("/")[-6]
+    df_htws.loc[:,'version_date'] = read_directory_historical.split("/")[-1]
+    df_htws.loc[:,'calendar'] = original_calendar
+    df_htws.loc[:,'bias-adjusted'] = ("CDFt" in read_directory_rcp)
     
     #Save dataframe 
     df_htws.to_csv(join(write_directory,"df_htws.csv"))
@@ -577,72 +586,350 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
         ssp_file_dict[f"ds_pop_ssp{ssp}"].close()
     return
 
-def plot_RWL_figures(read_directory,regional_warming_levels_list=[2.1,2.6,4.0,5.1]):
-    dir_list = [item for item in os.listdir(read_directory) if os.path.isdir(os.path.join(read_directory,item))] # List all subdirectories
-    dataframe_path_list = [join(subdir,"df_htws.csv") for subdir in dir_list] # Get all df_htws.csv files, containing heatwaves indices and data
-    array_dict = {reanalyses_array: []} # Dictionary to hold heatwaves indices for each RWL
-    df_global_htws = pd.DataFrame(data=None,columns=['Year','Start Date','End Date','model','RWL_1','RWL_2','RWL_3','RWL_4','Intensity','Duration','Max','Spatial extent',
-    'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2'
-    'Exposed_population_ssp3','HWMId_pop_ssp3','Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5','GCM','RCM','simulation','version','ensemble'])
+def mylog(x):
+    if x>0:
+        res = np.log10(x)
+    else:
+        res = np.nan
+    return res
+
+def plot_RWL_figures(read_directory,write_directory,regional_warming_levels_list=[2.1,2.6,4.0,5.1], RWLs_to_plot = [0,1,2]):
+    dir_list = [item for item in listdir(read_directory) if isdir(join(read_directory,item))] # List all subdirectories
+    dir_list = [_dir for _dir in dir_list if 'figs' not in _dir]
+    dataframe_path_list = [join(read_directory,subdir,"df_htws.csv") for subdir in dir_list if exists(join(read_directory,subdir,"df_htws.csv"))] # Get all df_htws.csv files, containing heatwaves indices and data
+    df_global_htws = pd.DataFrame(data=None,columns=['Year','Start Date','End Date','model','RWL_1','RWL_2','RWL_3','RWL_4','Intensity','Spatial extent','Duration','Max', 'HWMId_sum',
+    'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2',
+    'Exposed_population_ssp3','HWMId_pop_ssp3','Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5',
+    'GCM','RCM','simulation','version','ensemble','version_date','calendar','bias-adjusted'])
     
     for df_path in dataframe_path_list:
-        df_htws = pd.read_csv(join(write_directory,"df_htws.csv"),header=0,parse_dates=["Start Date", "End Date"],date_format="%Y/%m/%d",usecols=lambda x: x!="Unnamed: 0")
-        df_htws.insert(loc=3,column='model',value=df_path.split("/")[-1])
-        df_global_htws = pd.concat(df_global_htws,df_htws)
+        df_htws = pd.read_csv(df_path,header=0,parse_dates=["Start Date", "End Date"],date_format="%Y/%m/%d",usecols=lambda x: x!="Unnamed: 0")
+        df_htws.insert(loc=3,column='model',value=df_path.split("/")[-2])
+        df_global_htws = pd.concat([df_global_htws,df_htws],ignore_index=True)
     df_global_htws["Period RWL 1"] = False
     df_global_htws["Period RWL 2"] = False
     df_global_htws["Period RWL 3"] = False
+    df_global_htws["Period RWL 4"] = False
     df_global_htws["Historical"] = False
 
     for idx in df_global_htws.index:
-        for i in range(3):
+        for i in range(4):
             rwl = regional_warming_levels_list[i]
             df_global_htws.loc[idx,f"Period RWL {i+1}"] = (df_global_htws.loc[idx,"RWL_1"]==rwl) + (df_global_htws.loc[idx,"RWL_2"]==rwl) + (df_global_htws.loc[idx,"RWL_3"]==rwl) + (df_global_htws.loc[idx,"RWL_4"]==rwl)>0
         if df_global_htws.loc[idx,"model"]=='ERA5': #TODO Check this condition when data is ready
             df_global_htws.loc[idx,"Historical"] = True
 
     # Reference heatwaves
-    reference_htws = pd.read_csv("Data/df_htws_ERA5.csv",header=0,index_col=0) # TODO Check this path
-    reference_htws = reference_htws.loc[[159,226,380],:] # 2003, 2010, 2022
+    reference_htws = pd.read_csv(join(read_directory,'ERA5','df_htws.csv'),header=0,index_col=0) # TODO Check this path
+    reference_htws = reference_htws.loc[[26,91,191],:] # 26: 1987 Greece, 91: 2003 Europe, 120: 2010 Russia, 191: 2022 Europe
     reference_htws['label'] = reference_htws['Year']
 
-    htw_index_list = ['Intensity','Duration','Max','Spatial extent',
-    'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2'
+    log_indices = ['Spatial extent','HWMId_sum','Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2',
     'Exposed_population_ssp3','HWMId_pop_ssp3','Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5']
 
-    for htw_index in htw_index_list: # Cast objet type to numeric type
+    for index in log_indices :
+        df_global_htws[index] = df_global_htws[index].apply(mylog)
+        reference_htws[index] = reference_htws[index].apply(mylog)
+
+    df_global_htws.to_csv(join(write_directory,"df_global_htws.csv"))
+
+    bounds_dict = {
+        "Intensity":[0.5,4],
+        'Spatial extent':[4,7.5],
+        'Duration':[4,90],
+        'Max':[0,20],
+        'HWMId_sum':[1,7]
+    }
+
+    print("Plotting individual indices")
+    for index in tqdm(['Intensity','Duration','Max','Spatial extent','HWMId_sum']):
+        # Cast objet type to numeric type
         df_global_htws[index] = df_global_htws[index].astype(float)
         # Plot figure
         plotter = PeriodDistributionPlotter()
-
         # Customize the visualization settings --> see documentation for all options
         plotter.update_config(
-            kde_resolution=100,  # Number of points to evaluate the KDE to reduce the computation time
+            kde_resolution=1000,  # Number of points to evaluate the KDE to reduce the computation time, default is 1000
         )
 
         plotter.plot(
-            data=df_global_htws,
-            variable=htw_index,
+            data=df_global_htws[pd.isnull(df_global_htws[index])==False],#.query("sdi == 'SPI' and aggregation == 3"),
+            variable=index,
             periods_columns_labels={
-                "Historical": "Historical", # TODO Check Historical hetawaves
-                "Period RWL 1": "+1.5°C",
-                "Period RWL 2": "+2°C",
-                "Period RWL 3": "+3°C",
+                "Historical": "Historical",
+                f"Period RWL {RWLs_to_plot[0]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[0]]}°C",#"+1.5°C",f"Period RWL {RWLs_to_plot[0]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[0]]}°C",#"+1.5°C",
+                f"Period RWL {RWLs_to_plot[1]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[1]]}°C",#"+2°C",
+                f"Period RWL {RWLs_to_plot[2]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[2]]}°C",#"+3°C",
             },
             # reference_events=None,
-            reference_events=reference_htws,# TODO Check reference heatwaves
+            reference_events=reference_htws,#.query("sdi == 'SPI' and aggregation == 3"),
             cut_kdes=False,  # Whether to cut the KDEs at the minimum / maximum values of the events at each period
-            #bounds=(
-            #    1,
-            #    reference_htws["Intensity"].max()
-            #    * 1.1,
-            #),
+            bounds=(
+                bounds_dict[index][0],#1,
+                bounds_dict[index][1],
+                #* 1.1,
+            ),
         )
-
-        # Saving the figure
-        plotter.save(join(read_directory,f"single_plot.pdf"))
-
         # Accessing the figure object to modify it further if needed
         fig = plotter.fig
         ax = plotter.ax
+        fig.text(
+                0.5,
+                1,
+                index,
+                ha="center",
+                va="center",
+                fontsize="large",
+                fontweight="bold",
+            )
+
+        if index in log_indices:
+            labels = np.array(ax.get_xticks().tolist(), dtype=np.float64)
+            new_labels = [r'$10^{%.0f}$' % (labels[i]) for i in range(len(labels))]
+            ax.set_xticklabels(new_labels)
+        
+        fig.set_facecolor('white')
+        ax.set_facecolor('white')
+        # Saving the figure
+        plotter.save(join(write_directory,f"distrib_RWL_{index}.pdf".replace(" ","_")))
+        plotter.save(join(write_directory,f"distrib_RWL_{index}.jpg".replace(" ","_")))
+        plotter.save(join(write_directory,f"distrib_RWL_{index}.png".replace(" ","_")))
+        plt.close()
+
+    # Plot all HWMId_pop_sspX on one figure and all Exposed_population_sspX on another figure
+    print("Plotting indices for all SSPs")
+    for ind in tqdm(['HWMId_pop','Exposed_population']):
+        # 1. Initialize the figure and axes
+        _ncols = 2  # Number of columns for the plot corresponding here to the number of indices
+        _nrows = 3
+        fig, axs = plt.subplots(
+            nrows=_nrows*2,# + 1,  # Adding one row for the titles
+            ncols=_ncols,# + 1,  # Adding one column for the y-axis labels
+            figsize=(8.3 * 1.4, 11.7 * 0.9),
+            width_ratios=[1] * _ncols,
+            height_ratios=[0.1, 1] * _nrows,
+            gridspec_kw={"hspace": 0.5, "wspace": 0.1},
+        )
+
+        for ssp in range(1,6):
+            index = f"{ind}_ssp{ssp}"
+            # Select the events to plot based on the chosen index (and ssp)
+            _events_to_plot = df_global_htws[pd.isnull(df_global_htws[index])==False]
+            _reference_events_to_plot = reference_htws
+            row = 2*((ssp-1)//_ncols)+1
+            col = (ssp-1)%_ncols
+            ax = axs[row, col]  # +1 to skip the title row and y-axis label column
+            plotter = PeriodDistributionPlotter(ax=ax, language="en")
+            # Customize the visualization settings --> see documentation for all options
+            plotter.update_config(
+                kde_resolution=100,  # Number of points to evaluate the KDE to reduce the computation time
+            )
+            plotter.plot(
+                data=_events_to_plot,
+                variable=index,
+                periods_columns_labels={
+                    "Historical": "Historical",
+                    f"Period RWL {RWLs_to_plot[0]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[0]]}°C",#"+1.5°C",
+                    f"Period RWL {RWLs_to_plot[1]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[1]]}°C",#"+2°C",
+                    f"Period RWL {RWLs_to_plot[2]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[2]]}°C",#"+3°C",
+                },
+                reference_events=_reference_events_to_plot,
+                cut_kdes=False,
+                bounds=(
+                    2.5, #if ind == "HWMId_pop" else df_global_htws[index].min(),
+                    9 if ind == "HWMId_pop" else 7,#df_global_htws[index].max(),  # to limit the x-axis range (for better visualization)
+                ),
+            )
+            labels = np.array(ax.get_xticks().tolist(), dtype=np.float64)
+            new_labels = [r'$10^{%.0f}$' % (labels[i]) for i in range(len(labels))]
+            ax.set_xticklabels(new_labels)
+            # Format the titles
+            axs[row-1, col].axis("off")
+            axs[row-1, col].text(
+                0.5,
+                0.5,
+                f"SSP{ssp}",
+                ha="center",
+                va="center",
+                fontsize="large",
+                fontweight="bold",
+                rotation=0,
+            )
+        axs[-2, -1].axis("off") # Empty title of bottom-left cell
+        axs[-1, -1].axis("off") # Bottom-left empty cell
+        plt.savefig(join(write_directory,f"all_ssp_distrib_{ind}.pdf"),dpi=1200)
+        plt.savefig(join(write_directory,f"all_ssp_distrib_{ind}.png"))
+        plt.close()
+
+    return
+
+def plot_comparison_reanalysis_figures(read_directory,write_directory):
+    dir_list = [item for item in listdir(read_directory) if isdir(join(read_directory,item))] # List all subdirectories
+    dir_list = [_dir for _dir in dir_list if 'figs' not in _dir]
+    dataframe_path_list = [join(read_directory,subdir,"df_htws.csv") for subdir in dir_list if exists(join(read_directory,subdir,"df_htws.csv"))] # Get all df_htws.csv files, containing heatwaves indices and data
+    df_global_htws = pd.DataFrame(data=None,columns=['Year','Start Date','End Date','model','RWL_1','RWL_2','RWL_3','RWL_4','Intensity','Spatial extent','Duration','Max', 'HWMId_sum',
+    'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2',
+    'Exposed_population_ssp3','HWMId_pop_ssp3','Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5',
+    'GCM','RCM','simulation','version','ensemble','version_date','calendar','bias-adjusted'])
+    
+    for df_path in dataframe_path_list:
+        df_htws = pd.read_csv(df_path,header=0,parse_dates=["Start Date", "End Date"],date_format="%Y/%m/%d",usecols=lambda x: x!="Unnamed: 0")
+        df_htws.insert(loc=3,column='model',value=df_path.split("/")[-2])
+        df_global_htws = pd.concat([df_global_htws,df_htws],ignore_index=True)
+    df_global_htws["Period RWL 1"] = False
+    df_global_htws["Period RWL 2"] = False
+    df_global_htws["Period RWL 3"] = False
+    df_global_htws["Period RWL 4"] = False
+    df_global_htws["Historical"] = False
+
+    for idx in df_global_htws.index:
+        for i in range(4):
+            rwl = regional_warming_levels_list[i]
+            df_global_htws.loc[idx,f"Period RWL {i+1}"] = (df_global_htws.loc[idx,"RWL_1"]==rwl) + (df_global_htws.loc[idx,"RWL_2"]==rwl) + (df_global_htws.loc[idx,"RWL_3"]==rwl) + (df_global_htws.loc[idx,"RWL_4"]==rwl)>0
+        if df_global_htws.loc[idx,"model"]=='ERA5': #TODO Check this condition when data is ready
+            df_global_htws.loc[idx,"Historical"] = True
+
+    # Reference heatwaves
+    reference_htws = pd.read_csv(join(read_directory,'ERA5','df_htws.csv'),header=0,index_col=0) # TODO Check this path
+    reference_htws = reference_htws.loc[[26,91,191],:] # 26: 1987 Greece, 91: 2003 Europe, 120: 2010 Russia, 191: 2022 Europe
+    reference_htws['label'] = reference_htws['Year']
+
+    log_indices = ['Spatial extent','HWMId_sum','Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2',
+    'Exposed_population_ssp3','HWMId_pop_ssp3','Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5']
+
+    for index in log_indices :
+        df_global_htws[index] = df_global_htws[index].apply(mylog)
+        reference_htws[index] = reference_htws[index].apply(mylog)
+
+    df_global_htws.to_csv(join(write_directory,"df_global_htws.csv"))
+
+    bounds_dict = {
+        "Intensity":[0.5,4],
+        'Spatial extent':[4,7.5],
+        'Duration':[4,90],
+        'Max':[0,20],
+        'HWMId_sum':[1,7]
+    }
+
+    print("Plotting individual indices")
+    for index in tqdm(['Intensity','Duration','Max','Spatial extent','HWMId_sum']):
+        # Cast objet type to numeric type
+        df_global_htws[index] = df_global_htws[index].astype(float)
+        # Plot figure
+        plotter = PeriodDistributionPlotter()
+        # Customize the visualization settings --> see documentation for all options
+        plotter.update_config(
+            kde_resolution=1000,  # Number of points to evaluate the KDE to reduce the computation time, default is 1000
+        )
+
+        plotter.plot(
+            data=df_global_htws[pd.isnull(df_global_htws[index])==False],#.query("sdi == 'SPI' and aggregation == 3"),
+            variable=index,
+            periods_columns_labels={
+                "Historical": "Historical",
+                f"Period RWL {RWLs_to_plot[0]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[0]]}°C",#"+1.5°C",f"Period RWL {RWLs_to_plot[0]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[0]]}°C",#"+1.5°C",
+                f"Period RWL {RWLs_to_plot[1]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[1]]}°C",#"+2°C",
+                f"Period RWL {RWLs_to_plot[2]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[2]]}°C",#"+3°C",
+            },
+            # reference_events=None,
+            reference_events=reference_htws,#.query("sdi == 'SPI' and aggregation == 3"),
+            cut_kdes=False,  # Whether to cut the KDEs at the minimum / maximum values of the events at each period
+            bounds=(
+                bounds_dict[index][0],#1,
+                bounds_dict[index][1],
+                #* 1.1,
+            ),
+        )
+        # Accessing the figure object to modify it further if needed
+        fig = plotter.fig
+        ax = plotter.ax
+        fig.text(
+                0.5,
+                1,
+                index,
+                ha="center",
+                va="center",
+                fontsize="large",
+                fontweight="bold",
+            )
+
+        if index in log_indices:
+            labels = np.array(ax.get_xticks().tolist(), dtype=np.float64)
+            new_labels = [r'$10^{%.0f}$' % (labels[i]) for i in range(len(labels))]
+            ax.set_xticklabels(new_labels)
+        
+        fig.set_facecolor('white')
+        ax.set_facecolor('white')
+        # Saving the figure
+        plotter.save(join(write_directory,f"distrib_RWL_{index}.pdf".replace(" ","_")))
+        plotter.save(join(write_directory,f"distrib_RWL_{index}.jpg".replace(" ","_")))
+        plotter.save(join(write_directory,f"distrib_RWL_{index}.png".replace(" ","_")))
+        plt.close()
+
+    # Plot all HWMId_pop_sspX on one figure and all Exposed_population_sspX on another figure
+    print("Plotting indices for all SSPs")
+    for ind in tqdm(['HWMId_pop','Exposed_population']):
+        # 1. Initialize the figure and axes
+        _ncols = 2  # Number of columns for the plot corresponding here to the number of indices
+        _nrows = 3
+        fig, axs = plt.subplots(
+            nrows=_nrows*2,# + 1,  # Adding one row for the titles
+            ncols=_ncols,# + 1,  # Adding one column for the y-axis labels
+            figsize=(8.3 * 1.4, 11.7 * 0.9),
+            width_ratios=[1] * _ncols,
+            height_ratios=[0.1, 1] * _nrows,
+            gridspec_kw={"hspace": 0.5, "wspace": 0.1},
+        )
+
+        for ssp in range(1,6):
+            index = f"{ind}_ssp{ssp}"
+            # Select the events to plot based on the chosen index (and ssp)
+            _events_to_plot = df_global_htws[pd.isnull(df_global_htws[index])==False]
+            _reference_events_to_plot = reference_htws
+            row = 2*((ssp-1)//_ncols)+1
+            col = (ssp-1)%_ncols
+            ax = axs[row, col]  # +1 to skip the title row and y-axis label column
+            plotter = PeriodDistributionPlotter(ax=ax, language="en")
+            # Customize the visualization settings --> see documentation for all options
+            plotter.update_config(
+                kde_resolution=100,  # Number of points to evaluate the KDE to reduce the computation time
+            )
+            plotter.plot(
+                data=_events_to_plot,
+                variable=index,
+                periods_columns_labels={
+                    "Historical": "Historical",
+                    f"Period RWL {RWLs_to_plot[0]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[0]]}°C",#"+1.5°C",
+                    f"Period RWL {RWLs_to_plot[1]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[1]]}°C",#"+2°C",
+                    f"Period RWL {RWLs_to_plot[2]+1}": f"+{regional_warming_levels_list[RWLs_to_plot[2]]}°C",#"+3°C",
+                },
+                reference_events=_reference_events_to_plot,
+                cut_kdes=False,
+                bounds=(
+                    2.5, #if ind == "HWMId_pop" else df_global_htws[index].min(),
+                    9 if ind == "HWMId_pop" else 7,#df_global_htws[index].max(),  # to limit the x-axis range (for better visualization)
+                ),
+            )
+            labels = np.array(ax.get_xticks().tolist(), dtype=np.float64)
+            new_labels = [r'$10^{%.0f}$' % (labels[i]) for i in range(len(labels))]
+            ax.set_xticklabels(new_labels)
+            # Format the titles
+            axs[row-1, col].axis("off")
+            axs[row-1, col].text(
+                0.5,
+                0.5,
+                f"SSP{ssp}",
+                ha="center",
+                va="center",
+                fontsize="large",
+                fontweight="bold",
+                rotation=0,
+            )
+        axs[-2, -1].axis("off") # Empty title of bottom-left cell
+        axs[-1, -1].axis("off") # Bottom-left empty cell
+        plt.savefig(join(write_directory,f"all_ssp_distrib_{ind}.pdf"),dpi=1200)
+        plt.savefig(join(write_directory,f"all_ssp_distrib_{ind}.png"))
+        plt.close()
+
+
     return
