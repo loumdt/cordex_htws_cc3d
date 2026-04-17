@@ -22,14 +22,16 @@ if __name__ == "__main__":
     relative_threshold = True
     nb_days = 4
     connectivity = 26
-    #%%
-    #read_directory = "/scratchu/tmandonnet/CORDEX"
-    #write_directory = join("/scratchu/tmandonnet/CORDEX",f"figs_{temp_variable}_period_{start_year}_{end_year}_ref_{start_year_ref}_{end_year_ref}_threshold_{threshold_value}_{nb_days}days_connec_{connectivity}{'_ano'*anomaly}")
 
-    read_directory = "/home/user/These/cordex_htws_cc3d/Data"
-    write_directory = "/home/user/These/cordex_htws_cc3d/Data/output"
-    pop_data_path = "/home/user/These/cordex_htws_cc3d/Data"
-    other_data_path = "/home/user/These/cordex_htws_cc3d/Data"
+    regional_warming_levels_list=[2.1,2.6,4.0,5.1]
+    #%%
+    read_directory = "/scratchu/tmandonnet/CORDEX"
+    write_directory = join("/scratchu/tmandonnet/CORDEX",f"figs_{temp_variable}_period_{start_year}_{end_year}_ref_{start_year_ref}_{end_year_ref}_threshold_{threshold_value}_{nb_days}days_connec_{connectivity}{'_ano'*anomaly}")
+
+    #read_directory = "/home/user/These/cordex_htws_cc3d/Data"
+    #write_directory = "/home/user/These/cordex_htws_cc3d/Data/output"
+    #pop_data_path = "/home/user/These/cordex_htws_cc3d/Data"
+    #other_data_path = "/home/user/These/cordex_htws_cc3d/Data"
     #pop_data_path = "/scratchu/tmandonnet"
     #other_data_path = "/data/tmandonnet/CORDEX"
 
@@ -45,15 +47,15 @@ if __name__ == "__main__":
     overwrite_files=False #If True, overwrite output files that already exists (may be relevant in case of code or data update)
     # if overwrite_file is True or if output file does not exist : call function ; else pass
     #%% Compute climatology smooth
-    if (overwrite_files or exists(join(write_directory,f"seasonal_cycle_{start_year_ref}_{end_year_ref}.nc"))==False):
+    if (overwrite_files or exists(join(write_directory,"all_ssp_distrib_Exposed_population.pdf"))==False):
         print("--- %.2f seconds ---" % (time.time() - start_time))
-        print("Running plot_figures...")
-        plot_figures(read_directory,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable)
+        print("Running plot_RWL_figures...")
+        plot_RWL_figures(read_directory,write_directory,regional_warming_levels_list=regional_warming_levels_list,RWLs_to_plot=[0,1,2])
         print("Done.")
     #%% Compute Heatwaves indices database
-    if overwrite_files or exists(join(write_directory,"df_htws.csv"))==False:
+    if overwrite_files or exists(join(write_directory,"FIGNAME.pdf"))==False:
         print("--- %.2f seconds ---" % (time.time() - start_time))
-        print("Running create_heatwaves_indices_database ...")
-        create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,pop_data_path,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,anomaly=True)
+        print("Running plot_comparison_reanalysis_figures...")
+        plot_comparison_reanalysis_figures(read_directory,write_directory)
         print("Done.")
     print("--- %.2f seconds ---" % (time.time() - start_time))

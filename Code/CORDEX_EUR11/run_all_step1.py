@@ -28,6 +28,8 @@ if __name__ == "__main__":
     relative_threshold = True
     nb_days = 4
     connectivity = 26
+
+    bias_adjusted = False
     #%%
     #read_directory_historical = "/bdd/CORDEX/output/EUR-11/GERICS/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/GERICS-REMO2015/v2/day/tas/latest"
     #read_directory_rcp = "/bdd/CORDEX/output/EUR-11/GERICS/CNRM-CERFACS-CNRM-CM5/rcp85/r1i1p1/GERICS-REMO2015/v2/day/tas/latest"
