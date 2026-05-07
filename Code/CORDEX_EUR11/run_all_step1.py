@@ -17,11 +17,13 @@ if __name__ == "__main__":
     #read_directory_historical = sys.argv[5]
     #read_directory_rcp = #sys.argv[6]
 
+    bias_adjusted = False
+
     start_year = 1975
     end_year = 2099
     start_year_ref = 1975
     end_year_ref = 2025
-    temp_variable = 'tasmax'
+    temp_variable = 'tasmax'+'Adjust'*bias_adjusted
     threshold_value = 95
     distrib_window_size = 15
     anomaly = True
@@ -29,9 +31,10 @@ if __name__ == "__main__":
     nb_days = 4
     connectivity = 26
 
-    bias_adjusted = False
     #%%
     #read_directory_historical = "/bdd/CORDEX/output/EUR-11/GERICS/CNRM-CERFACS-CNRM-CM5/historical/r1i1p1/GERICS-REMO2015/v2/day/tas/latest"
+    read_directory_historical = "/home/user/These/cordex_htws_cc3d/Data/ERA5/tasmax/before_2005"
+    read_directory_rcp = "/home/user/These/cordex_htws_cc3d/Data/ERA5/tasmax/after_2005"
     #read_directory_rcp = "/bdd/CORDEX/output/EUR-11/GERICS/CNRM-CERFACS-CNRM-CM5/rcp85/r1i1p1/GERICS-REMO2015/v2/day/tas/latest"
     #path_to_remove = "/bdd/CORDEX/output/EUR-11/"
     #write_directory = join("/scratchu/tmandonnet/CORDEX",read_directory_rcp.replace(path_to_remove,"").replace("/","_"))
@@ -78,7 +81,7 @@ if __name__ == "__main__":
     if overwrite_files or exists(join(write_directory,"regional_warming_levels.json"))==False:
         print("--- %.2f seconds ---" % (time.time() - start_time))
         print("Running compute_regional_warming_levels ...")
-        compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=start_year,end_year=end_year,start_year_ref=1986,end_year_ref=2005,ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1])
+        compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=start_year,end_year=end_year,start_year_ref=1986,end_year_ref=2005,temp_variable=temp_variable,ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1],bias_adjusted=bias_adjusted)
         print("Done.")
     #%% Compute HWMId index
     if overwrite_files or exists(join(write_directory,"Russo_HWMId.nc"))==False:
@@ -90,6 +93,6 @@ if __name__ == "__main__":
     if overwrite_files or exists(join(write_directory,"df_htws.csv"))==False:
         print("--- %.2f seconds ---" % (time.time() - start_time))
         print("Running create_heatwaves_indices_database ...")
-        create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,pop_data_path,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,anomaly=True)
-        print("Done.")
+        #create_heatwaves_indices_database(read_directory_historical,read_directory_rcp,write_directory,pop_data_path,other_data_path,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,temp_variable=temp_variable,threshold_value=threshold_value,anomaly=True)
+        #print("Done.")
     print("--- %.2f seconds ---" % (time.time() - start_time))
