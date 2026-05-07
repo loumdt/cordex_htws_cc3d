@@ -79,10 +79,15 @@ def compute_seasonal_cycle(read_directory_historical,read_directory_rcp,write_di
     #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
     ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all',chunks={'time': 1461})
     da = getattr(ds, temp_variable)
-    try:
-        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
-    except:
+
+    if 'x' in da.dims and 'y' in da.dims:
         da = da.chunk(chunks={'time':len(da.time),'x': 82,'y': 84})
+    elif 'rlat' in da.dims and 'rlon' in da.dims:
+        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
+    elif 'lat' in da.dims and 'lon' in da.dims:
+        da = da.chunk(chunks={'time':len(da.time),'lat': 36,'lon': 54})
+    else:
+        raise ValueError("Dimensions are not as expected. Should be either ('lat','lon'), ('rlat','lon'), or ('x','y').")
     # Since the files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
     da = da.sel(time=mask)
@@ -121,10 +126,14 @@ def compute_distrib_percentile(read_directory_historical,read_directory_rcp,writ
     #client = Client(n_workers=20, threads_per_worker=2, memory_limit='60GB')
     ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all',chunks={'time': 1461})#,parallel=True)
     da = getattr(ds, temp_variable)
-    try:
-        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
-    except:
+    if 'x' in da.dims and 'y' in da.dims:
         da = da.chunk(chunks={'time':len(da.time),'x': 82,'y': 84})
+    elif 'rlat' in da.dims and 'rlon' in da.dims:
+        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
+    elif 'lat' in da.dims and 'lon' in da.dims:
+        da = da.chunk(chunks={'time':len(da.time),'lat': 36,'lon': 54})
+    else:
+        raise ValueError("Dimensions are not as expected. Should be either ('lat','lon'), ('rlat','lon'), or ('x','y').")
     # Since files generally cover several years, have to select sub-period (it may not exactly match the boundaries of loaded files)
     mask = (da.time.dt.year>=start_year_ref) & (da.time.dt.year<=end_year_ref)
     da = da.sel(time=mask)
@@ -251,8 +260,10 @@ def cc3d_scan_heatwaves(read_directory_historical,read_directory_rcp,write_direc
             label.data = labels_out + N_labels*(labels_out>0)
 
             #Remove sea heatwaves
-            label.data = remove_sea_heatwaves(read_directory=join(other_data_path,"sftlf"),labels=label.data,grid_mapping=da.grid_mapping,connectivity=connectivity)
-
+            try:
+                label.data = remove_sea_heatwaves(read_directory=join(other_data_path,"mask"),labels=label.data,grid_mapping=da.grid_mapping,connectivity=connectivity)
+            except:
+                label.data = remove_sea_heatwaves(read_directory=join(other_data_path,"mask"),labels=label.data,grid_mapping='ERA5',connectivity=connectivity)
             # Set DataArray to Dataset to set variable name
             label = label.to_dataset(name="label")
             # Save to netCDF 
@@ -277,19 +288,16 @@ def remove_sea_heatwaves(read_directory,labels,grid_mapping,resolution_CORDEX=0.
     # Set dust threshold to supress small amount of points. The threshold of 775 have been established with ERA5 0.25°, and is translated according to CORDEX resolution, hence the following calculation
     dust_threshold = int(dust_threshold * (0.25/resolution_CORDEX)**2) # resolution_CORDEX is given in °
 
-    land_area_fraction = xr.open_dataset(join(read_directory,f"CORDEX_EUR-11_land_area_fraction_{grid_mapping}.nc"),engine='netcdf4').sftlf
-    if np.max(land_area_fraction)==100: # Have to check if land_area_fraction ranges from 0 to 100 or from 0 to 1
-        land_area_fraction_threshold *= 100
+    land_sea_mask = xr.open_dataset(join(read_directory,f"mask_Europe_land_only_CORDEX_EUR11_{grid_mapping}.nc"),engine='netcdf4').mask # ERA5 land-sea mask
 
-    # Remove sea points
-    labels = labels * (land_area_fraction.data>=land_area_fraction_threshold)
+    # Remove sea points and non-European points
+    labels = labels * (land_sea_mask.data==0) #mask is 0 for European countries, 1 elsewhere (sea and non-European countries)
 
     # Remove small heatwaves with the cc3d dust function
-     # only 4,8 (2D) and 26, 18, and 6 (3D) are allowed
     labels = labels * cc3d.dust((labels>0),dust_threshold,connectivity=connectivity)
     return labels
 
-def compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=1975,end_year=2099,start_year_ref=1986,end_year_ref=2005,temp_variable='tasmax',ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1]):
+def compute_regional_warming_levels(read_directory_historical,read_directory_rcp,write_directory,start_year=1975,end_year=2099,start_year_ref=1986,end_year_ref=2005,temp_variable='tasmax',ref_period_offset=0.72,running_mean_window_size=20,regional_warming_levels_list=[2.1,2.6,4.0,5.1],bias_adjusted=False):
     # RWL values (regional_warming_levels_list) gathered from https://interactive-atlas.ipcc.ch/regional-information by selecting the four reference regions overlapping with EUR CORDEX domain, and taking the median temperature of each GWL period in the Table Summary
     # Default RWL 0.72°C of the 1986-2005 period is computed in compute_regional_offset.ipynb
     if running_mean_window_size % 2 != 0:
@@ -304,7 +312,7 @@ def compute_regional_warming_levels(read_directory_historical,read_directory_rcp
         files_to_load = create_files_list_to_load(read_directory_historical,read_directory_rcp,start_year,end_year)
     
     for i in range(len(files_to_load)): # RWL are computed on average temperature ('tas'), regardless of the chosen temp_variable
-        tas_file = files_to_load[i].replace(temp_variable,'tas')
+        tas_file = files_to_load[i].replace(temp_variable,'tas'+'Adjust'*bias_adjusted)
         files_to_load[i] = tas_file
 
     # Load multi-file dataset
@@ -331,13 +339,18 @@ def compute_regional_warming_levels(read_directory_historical,read_directory_rcp
     da_weighted = da.weighted(weights)
     da_ref = da_ref.weighted(weights)
     
-    try: # Have to take into account the fact that grid_mapping is not always the same in CORDEX outputs
-        da_weighted = da_weighted.mean(("rlat","rlon")) # 1D-array of annual values
-        da_ref = da_ref.mean(("rlat","rlon")) # one single value
-    except:
+    # Have to take into account the fact that grid_mapping is not always the same in CORDEX outputs
+    if 'x' in da_weighted.dims and 'y' in da_weighted.dims:
         da_weighted = da_weighted.mean(("x","y")) # 1D-array of annual values
         da_ref = da_ref.mean(("x","y")) # one single value
-        
+    elif 'rlat' in da_weighted.dims and 'rlon' in da_weighted.dims:
+        da_weighted = da_weighted.mean(("rlat","rlon")) # 1D-array of annual values
+        da_ref = da_ref.mean(("rlat","rlon")) # one single value
+    elif 'lat' in da_weighted.dims and 'lon' in da_weighted.dims:
+        da_weighted = da_weighted.mean(("lat","lon")) # 1D-array of annual values
+        da_ref = da_ref.mean(("lat","lon")) # one single value
+    else:
+        raise ValueError("Dimensions are not as expected. Should be either ('lat','lon'), ('rlat','lon'), or ('x','y').")
     da_weighted = da_weighted - da_ref # 1D-array of annual values reprenting the european warming since the reference period (default 1986-2005)
     da_weighted = da_weighted.compute()
 
@@ -376,11 +389,14 @@ def compute_Russo_HWMId(read_directory_historical,read_directory_rcp,write_direc
     ds = xr.open_mfdataset(files_to_load, engine='netcdf4',data_vars='all')#,parallel=True)
     da = getattr(ds,temp_variable)
     original_calendar = da.time.dt.calendar
-    try:
-        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
-    except:
+    if 'x' in da.dims and 'y' in da.dims:
         da = da.chunk(chunks={'time':len(da.time),'x': 82,'y': 84})
-    
+    elif 'rlat' in da.dims and 'rlon' in da.dims:
+        da = da.chunk(chunks={'time':len(da.time),'rlat': 82,'rlon': 84})
+    elif 'lat' in da.dims and 'lon' in da.dims:
+        da = da.chunk(chunks={'time':len(da.time),'lat': 36,'lon': 54})
+    else:
+        raise ValueError("Dimensions are not as expected. Should be either ('lat','lon'), ('rlat','lon'), or ('x','y').")
     if original_calendar != '360_day': # Either calendar is 360_day and leave it this way, or it is other and make sure it is noleap
         da = da.convert_calendar("noleap")
     
@@ -417,7 +433,10 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
         RWL_dict = json.load(f)
 
     # Get grid_mapping
-    grid_mapping = xr.open_dataset(join(write_directory,f"labels_cc3d_year_{start_year}_ref_{start_year_ref}_{end_year_ref}.nc"), engine="netcdf4").label.grid_mapping    
+    try:
+        grid_mapping = xr.open_dataset(join(write_directory,f"labels_cc3d_year_{start_year}_ref_{start_year_ref}_{end_year_ref}.nc"), engine="netcdf4").label.grid_mapping
+    except:
+        grid_mapping = 'ERA5'
 
     # Create list of temperature files to load
     if end_year <= split_year: # If all files are in historical directory, ignore rcp directory
@@ -563,7 +582,7 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
                 df_htws['simulation'] = "historical"
             else:
                 df_htws['simulation'] = read_directory_rcp.split("/")[-7] #rcp45 or rcp85
-    
+    #TODO Update with bias-adjusted case
     df_htws.loc[:,'GCM'] = read_directory_historical.split("/")[-8]
     df_htws.loc[:,'RCM'] = read_directory_historical.split("/")[-5]
     df_htws.loc[:,'version'] = read_directory_historical.split("/")[-4]
