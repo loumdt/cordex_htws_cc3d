@@ -1,6 +1,7 @@
 CORDEX.csv
 Data/*
 .cordex_env/*
+.gdal_env/*
 __pycache__/*
 Code/CORDEX-EUR11/__pycache__/*
 exist.sh
