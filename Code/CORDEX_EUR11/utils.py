@@ -1,15 +1,14 @@
 import numpy as np
 import xarray as xr
-import netCDF4 as nc #load and write netcdf data
 from datetime import date, datetime #create file history with creation date
 from tqdm import tqdm #create a user-friendly feedback while script is running
-from os import listdir
+from os import listdir, makedirs
 from os.path import isfile, join, isdir, exists
-import re #Use RegEx 
 import pandas as pd #handle dataframes
 import cc3d #connected components patterns
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import json
@@ -17,7 +16,6 @@ import glob
 from plots import *
 import subprocess
 import os
-import matplotlib.ticker as mticker
 
 # Split year is the last year of the historical period. In CORDEX runs based on CMIP5 experiment, it is 2005.
 # Have to change value for a different version of CORDEX. 
@@ -703,7 +701,7 @@ def remap_labels_for_comparison(read_directory='/scratchu/tmandonnet/CORDEX',wri
                 labels_files = glob.glob(join(read_directory,model,'labels*.nc'))
                 for file in labels_files:
                     if overwrite == True or exists(file) == False:
-                        os.makedirs(join(write_directory,model),exist_ok=True)
+                        makedirs(join(write_directory,model),exist_ok=True)
                         subprocess.call(f"cdo -remapnn,{join(target_grid_directory,f'gridarea_CORDEX_EUR11_{mapping_target}.nc')} {file} {join(write_directory,model,file.split('/')[-1])}",shell=True)
         else: # i.e grid_mapping is mapping_target, just copy file
             mapping_model_list = np.unique(df_htws[df_htws['grid_mapping']==grid_mapping]['model'])
@@ -712,7 +710,7 @@ def remap_labels_for_comparison(read_directory='/scratchu/tmandonnet/CORDEX',wri
                 labels_files = glob.glob(join(read_directory,model,'labels*.nc'))
                 for file in labels_files:
                     if overwrite == True or exists(file) == False:
-                        os.makedirs(join(write_directory,model),exist_ok=True)
+                        makedirs(join(write_directory,model),exist_ok=True)
                         subprocess.call(f"cp {file} {join(write_directory,model,file.split('/')[-1])}",shell=True)
 
 def plot_4_panel_hot_days(read_directory,write_directory,start_year=1975,end_year=2099,need_to_compute_labels=False):
