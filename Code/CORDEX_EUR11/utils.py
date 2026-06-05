@@ -16,6 +16,7 @@ import glob
 from plots import *
 import subprocess
 import os
+import mannkendall as mk
 
 # Split year is the last year of the historical period. In CORDEX runs based on CMIP5 experiment, it is 2005.
 # Have to change value for a different version of CORDEX. 
@@ -863,6 +864,111 @@ def plot_4_panel_hot_days(read_directory,write_directory,start_year=1975,end_yea
         print(f"Saved.")
     return
 
+def compute_mk_trends(read_directory,other_data_path,split_year_population=2025):
+    dict_area = {}
+    for grid_mapping in ['ERA5','Lambert_Conformal','rotated_pole','rotated_latitude_longitude']:
+        da_cell_area = xr.open_dataset(join(other_data_path,'cellarea',f'gridarea_CORDEX_EUR11_{grid_mapping}.nc'),engine='netcdf4').cell_area
+        da_mask = xr.open_dataset(join(other_data_path,'mask',f'mask_Europe_land_only_CORDEX_EUR11_{grid_mapping}.nc'),engine='netcdf4').mask
+        area_Europe = (da_cell_area * (da_mask.data==0)).sum().data/1e6 # compute the area of studied part of Europe in km²
+        dict_area[grid_mapping] = area_Europe
+
+    df_htws = pd.read_csv(join(read_directory,'df_global_htws.csv'),header=0,index_col=0)
+    df_htws['Relative spatial extent (%)'] = None
+    for i in tqdm(df_htws.index):
+        area_Europe = dict_area[df_htws.loc[i,'grid_mapping']]
+        df_htws.loc[i,'Relative spatial extent (%)'] = round(100*df_htws.loc[i,'Spatial extent']/area_Europe,2)
+
+    df_aerosols = pd.read_csv(join(other_data_path,'cordex_aerosols_info.csv'),header=0,index_col=0)
+
+    model_list = np.unique(df_htws['model'])
+
+    # Merge GHS and FPOP to form a complete column, for each SSP
+    df_htws['Exposed_population_ssp1_all_period'] = None
+    df_htws['HWMId_pop_ssp1_all_period'] = None
+    df_htws['Exposed_population_ssp2_all_period'] = None
+    df_htws['HWMId_pop_ssp2_all_period'] = None
+    df_htws['Exposed_population_ssp3_all_period'] = None
+    df_htws['HWMId_pop_ssp3_all_period'] = None
+    df_htws['Exposed_population_ssp4_all_period'] = None
+    df_htws['HWMId_pop_ssp4_all_period'] = None
+    df_htws['Exposed_population_ssp5_all_period'] = None
+    df_htws['HWMId_pop_ssp5_all_period'] = None
+
+    for i in tqdm(df_htws.index):
+        year = df_htws.loc[i,'Year']
+        for ssp in range (1,6):
+            if year <= split_year_population:
+                df_htws.loc[i,f'Exposed_population_ssp{ssp}_all_period'] = df_htws.loc[i,f'Exposed_population_ghs']
+                df_htws.loc[i,f'HWMId_pop_ssp{ssp}_all_period'] = df_htws.loc[i,f'HWMId_pop_ghs']
+            else:
+                df_htws.loc[i,f'Exposed_population_ssp{ssp}_all_period'] = df_htws.loc[i,f'Exposed_population_ssp{ssp}']
+                df_htws.loc[i,f'HWMId_pop_ssp{ssp}_all_period'] = df_htws.loc[i,f'HWMId_pop_ssp{ssp}']
+    
+    df_frequency = pd.DataFrame(columns=['model','Year','Frequency'],data=None)
+    count_index=0
+    for model in tqdm(model_list):
+        for year in range(1975,2100):
+            df_frequency.loc[count_index,'model'] = model
+            df_frequency.loc[count_index,'Year'] = year
+            df_frequency.loc[count_index,'Frequency'] = len(df_htws[(df_htws['model']==model) & (df_htws['Year']==year)])
+            count_index += 1
+
+    iterables = [
+    ['Frequency','Intensity','Spatial extent','Relative spatial extent (%)','Duration','Max','HWMId_sum',
+    'Exposed_population_ssp1_all_period','HWMId_pop_ssp1_all_period',
+    'Exposed_population_ssp2_all_period','HWMId_pop_ssp2_all_period','Exposed_population_ssp3_all_period','HWMId_pop_ssp3_all_period',
+    'Exposed_population_ssp4_all_period','HWMId_pop_ssp4_all_period','Exposed_population_ssp5_all_period','HWMId_pop_ssp5_all_period'],
+    ["p", "ss", "slope", "ucl", "lcl"]
+    ]
+
+    df_mk = pd.DataFrame(index=model_list,columns=pd.MultiIndex.from_product(iterables, names=["index", "mk"]),dtype=float)
+
+    # Compute MK trend test for frequency
+    for model in tqdm(df_mk.index):
+        sub_df = df_frequency[df_frequency['model']==model]
+        dates_array = np.array([datetime(i,1,1) for i in sub_df['Year'].values]) # Convert Year to proper datetime
+        observations_array = np.array(sub_df['Frequency']).astype(float)
+        mk_result = mk.mk_temp_aggr(dates_array,observations_array,resolution=0.9)
+        mk_result = mk_result[list(mk_result.keys())[-1]] # Only take last dict
+        df_mk.loc[model,('Frequency','p')] = mk_result['p']
+        df_mk.loc[model,('Frequency','ss')] = mk_result['ss']
+        df_mk.loc[model,('Frequency','slope')] = mk_result['slope']
+        df_mk.loc[model,('Frequency','lcl')] = mk_result['lcl']
+        df_mk.loc[model,('Frequency','ucl')] = mk_result['ucl']
+
+    index_list = ['Frequency','Intensity','Spatial extent','Relative spatial extent (%)','Duration','Max','HWMId_sum',
+    'Exposed_population_ssp1_all_period','HWMId_pop_ssp1_all_period',
+    'Exposed_population_ssp2_all_period','HWMId_pop_ssp2_all_period','Exposed_population_ssp3_all_period','HWMId_pop_ssp3_all_period',
+    'Exposed_population_ssp4_all_period','HWMId_pop_ssp4_all_period','Exposed_population_ssp5_all_period','HWMId_pop_ssp5_all_period']
+    # List of coefficients to reduce memory load, suited to the scale of each index
+    index_memory_coeff = {'Frequency':1,'Intensity':1,'Spatial extent':1e3,'Relative spatial extent (%)':1,'Duration':1,'Max':1,'HWMId_sum':1e6,'Exposed_population_ssp1_all_period':1e6,'HWMId_pop_ssp1_all_period':1e6,
+        'Exposed_population_ssp2_all_period':1e6,'HWMId_pop_ssp2_all_period':1e6,'Exposed_population_ssp3_all_period':1e6,'HWMId_pop_ssp3_all_period':1e6,
+        'Exposed_population_ssp4_all_period':1e6,'HWMId_pop_ssp4_all_period':1e6,'Exposed_population_ssp5_all_period':1e6,'HWMId_pop_ssp5_all_period':1e6}
+    # Compute MK trend test for all other indices
+    count_fail=0
+    for model in tqdm(df_mk.index):
+        sub_df = df_htws[df_htws['model']==model]
+        for index in index_list[1:]:
+            sub_df[index] = sub_df[index]/index_memory_coeff[index] # Divide to reduce memory load
+            dates_array = np.array([datetime(i,1,1) for i in sub_df['Year'].values]) # Convert Year to proper datetime
+            observations_array = np.array(sub_df[index]).astype(float)
+            try:
+                mk_result = mk.mk_temp_aggr(dates_array,observations_array,resolution=0.01)
+                mk_result = mk_result[list(mk_result.keys())[-1]] # Only take last dict
+                df_mk.loc[model,(index,'p')] = mk_result['p']
+                df_mk.loc[model,(index,'ss')] = mk_result['ss']
+                df_mk.loc[model,(index,'slope')] = mk_result['slope']*index_memory_coeff[index] # Multiply to get correct value
+                df_mk.loc[model,(index,'lcl')] = mk_result['lcl']*index_memory_coeff[index] # Multiply to get correct value
+                df_mk.loc[model,(index,'ucl')] = mk_result['ucl']*index_memory_coeff[index] # Multiply to get correct value
+            except:
+                count_fail += 1
+
+    print(f'{count_fail} failures in MK test computation.')
+    # Export dataset
+    df_mk.to_csv(join(read_directory,'df_mk_trends.csv'))
+
+    return
+
 def plot_RWL_figures(read_directory,write_directory,regional_warming_levels_list=[2.1,2.6,4.0,5.1], RWLs_to_plot = [0,1,2]):
     df_global_htws = pd.read_csv(join(write_directory,"df_global_htws.csv"))
     # Reference heatwaves
@@ -1176,9 +1282,3 @@ def plot_comparison_reanalysis_figures(read_directory,write_directory):
         plt.close()
 
     return
-
-def plot_hot_days_locations(read_directory,write_directory):
-    #dir_list = [item for item in listdir(read_directory) if isdir(join(read_directory,item))] # List all subdirectories
-    #dir_list = [_dir for _dir in dir_list if 'figs' not in _dir]
-    #dataframe_path_list = [join(read_directory,subdir,"df_htws.csv") for subdir in dir_list if exists(join(read_directory,subdir,"df_htws.csv"))] # Get all df_htws.csv files, containing heatwaves indices and data
-    labels_file_list = np.sort(glob.glob("*/labels*.nc"))
