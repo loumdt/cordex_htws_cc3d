@@ -32,8 +32,8 @@ if __name__ == "__main__":
     #write_directory = "/home/user/These/cordex_htws_cc3d/Data/output"
     #pop_data_path = "/home/user/These/cordex_htws_cc3d/Data"
     #other_data_path = "/home/user/These/cordex_htws_cc3d/Data"
-    #pop_data_path = "/scratchu/tmandonnet"
-    #other_data_path = "/data/tmandonnet/CORDEX"
+    pop_data_path = "/scratchu/tmandonnet"
+    other_data_path = "/data/tmandonnet/CORDEX"
 
     os.makedirs(write_directory,exist_ok=True)
     #%%
@@ -44,18 +44,56 @@ if __name__ == "__main__":
     print(f"study period: {start_year}-{end_year}")
     print(f"baseline period: {start_year_ref}-{end_year_ref}")
 
-    overwrite_files=False #If True, overwrite output files that already exists (may be relevant in case of code or data update)
+    overwrite_files=True #If True, overwrite output files that already exists (may be relevant in case of code or data update)
     # if overwrite_file is True or if output file does not exist : call function ; else pass
-    #%% Compute climatology smooth
+    if (overwrite_files or exists(join(write_directory,"df_global_htws.csv"))==False):
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running merge_heatwaves_dataframes...")
+        #merge_heatwaves_dataframes(read_directory,write_directory,start_year_ref=start_year_ref,end_year_ref=end_year_ref,regional_warming_levels_list=regional_warming_levels_list)
+        print("Done.")
+    if overwrite_files:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running remap_labels_for_comparison...")
+        #remap_labels_for_comparison(read_directory=read_directory,write_directory=join(read_directory,'remapped_labels_for_figs'),target_grid_directory='/data/tmandonnet/CORDEX/cellarea',mapping_target='rotated_pole',overwrite=overwrite_files)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,'hot_days_4_panels_raw_models.pdf'))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running plot_4_panel_hot_days...")
+        #plot_4_panel_hot_days_RWL(read_directory=read_directory,write_directory=write_directory,start_year=2026,end_year=end_year,need_to_compute_labels=True)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,'hot_days_4_panels_raw_models.pdf'))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running make_animation_selected_models...")
+        make_animation_selected_models(read_directory=read_directory,write_directory=write_directory,other_data_path=other_data_path)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,"df_mk_trends_1975_2025.csv"))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running compute_mk_trends...")
+        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=1975,end_year=2025,split_year_population=2025,yearly_aggregation=False)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,"df_mk_trends_2026_2099.csv"))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running compute_mk_trends...")
+        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=2026,end_year=2099,split_year_population=2025,yearly_aggregation=False)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,"df_mk_trends_1975_2025_year_agg.csv"))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running compute_mk_trends...")
+        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=1975,end_year=2025,split_year_population=2025,yearly_aggregation=True)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,"df_mk_trends_2026_2099_year_agg.csv"))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running compute_mk_trends...")
+        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=2026,end_year=2099,split_year_population=2025,yearly_aggregation=True)
+        print("Done.")
     if (overwrite_files or exists(join(write_directory,"all_ssp_distrib_Exposed_population.pdf"))==False):
-        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running plot_RWL_figures...")
-        plot_RWL_figures(read_directory,write_directory,regional_warming_levels_list=regional_warming_levels_list,RWLs_to_plot=[0,1,2])
+        #plot_RWL_figures(read_directory,write_directory,regional_warming_levels_list=regional_warming_levels_list,RWLs_to_plot=[0,1,2])
         print("Done.")
-    #%% Compute Heatwaves indices database
     if overwrite_files or exists(join(write_directory,"FIGNAME.pdf"))==False:
-        print("--- %.2f seconds ---" % (time.time() - start_time))
+        print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running plot_comparison_reanalysis_figures...")
-        plot_comparison_reanalysis_figures(read_directory,write_directory)
+        #plot_comparison_reanalysis_figures(read_directory,write_directory)
         print("Done.")
-    print("--- %.2f seconds ---" % (time.time() - start_time))
+    print("--- %.0f hours and %.0f minutes ---" % ((time.time() - start_time)//3600 , (time.time() - start_time)%3600//60))
