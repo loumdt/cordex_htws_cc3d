@@ -15,8 +15,7 @@ class ColorScheme:
 
     black = "#0D160B"
     grey = "#7D7D7D"
-    periods = ["#9CAFB7","#7D7D7D",
-     "#E8AE68", "#FA9500", "#B22222","#9D1E1E"]
+    periods = ["#9CAFB7", "#E8AE68", "#FA9500", "#B22222"]
 
     def get_color(self, period: int) -> str:
         return self.periods[period] if 0 <= period < len(self.periods) else self.grey
@@ -25,10 +24,22 @@ class ColorScheme:
 # Dictionary to manage units for plots
 UNITS = {
     "Intensity": "°C",
-    "Spatial extent": "km²",
+    "Surface Area": "km²",
     "Duration": "Days",
-    "HWMId_pop_ssp1_all_period": "IQR-persons",
-    "HWMId_pop": "IQR-persons",
+    "Max": "°C",
+    "HWMId_sum": "IQR",
+    "Exposed_population_ghs": "people",
+    "HWMId_pop_ghs": "IQR-person/km²",
+    "Exposed_population_ssp1": "people",
+    "HWMId_pop_ssp1": "IQR-person/km²",
+    "Exposed_population_ssp2": "people",
+    "HWMId_pop_ssp2": "IQR-person/km²",
+    "Exposed_population_ssp3": "people",
+    "HWMId_pop_ssp3": "IQR-person/km²",
+    "Exposed_population_ssp4": "people",
+    "HWMId_pop_ssp4": "IQR-person/km²",
+    "Exposed_population_ssp5": "people",
+    "HWMId_pop_ssp5": "IQR-person/km²",
 }
 
 
@@ -73,7 +84,7 @@ class BasePlotter(ABC):
 class PeriodDistributionPlotter(BasePlotter):
     """Class to plot the distribution of a variable over specified periods.
 
-    This class creates distribution plots (KDE or histogram) showing the distribution
+    This class creates KDE (Kernel Density Estimation) plots showing the distribution
     of a variable across different time periods, with optional reference events.
 
     Args:
@@ -86,25 +97,13 @@ class PeriodDistributionPlotter(BasePlotter):
         All visual aspects of the plot can be customized using the update_config() method.
         Available parameters include:
 
-        Display Mode:
-            - display_mode (str, default="kde"): Type of distribution plot. Either "kde"
-              for Kernel Density Estimation, "histogram" for bar histograms, or
-              "cumulative_histogram" for a decreasing cumulative histogram.
-
         KDE Configuration:
             - kde_resolution (int, default=1000): Number of points for KDE evaluation. Higher values
               create smoother curves but increase computation time.
-            - kde_height_scale (float, default=1.5): Scale factor for distribution height
-              normalization. Controls how tall the curves/bars appear relative to the period
-              spacing. Also used by histograms.
-            - kde_alpha (float, default=0.99): Transparency of distribution fills
-              (0=transparent, 1=opaque). Also used by histograms.
-            - kde_edge_linewidth (float, default=0.5): Line width for distribution edges.
-              Also used by histograms.
-
-        Histogram Configuration:
-            - hist_bins (int, default=20): Number of bins for histogram mode.
-            - hist_rwidth (float, default=0.9): Relative width of histogram bars (0-1).
+            - kde_height_scale (float, default=1.5): Scale factor for KDE height normalization.
+              Controls how tall the KDE curves appear relative to the period spacing.
+            - kde_alpha (float, default=0.99): Transparency of KDE fills (0=transparent, 1=opaque).
+            - kde_edge_linewidth (float, default=0.5): Line width for KDE curve edges.
 
         Reference Events Configuration:
             - reference_event_linewidth (float, default=2.5): Line width for vertical reference lines.
@@ -122,8 +121,6 @@ class PeriodDistributionPlotter(BasePlotter):
             - score_fontsize (str, default="small"): Font size for percentage scores.
             - score_bbox_linewidth (float, default=0.67): Border width for score label boxes.
             - score_bbox_pad (float, default=0.2): Padding inside score label boxes.
-            - show_first_period_scores (bool, default=True): Whether to display percentage scores
-              for the first (historical) period.
 
         Tick Configuration:
             - tick_length_x (float, default=2): Length of x-axis tick marks.
@@ -139,7 +136,7 @@ class PeriodDistributionPlotter(BasePlotter):
 
     Example:
         >>> plotter = PeriodDistributionPlotter()
-        >>> plotter.update_config(display_mode="histogram", hist_bins=15)
+        >>> plotter.update_config(kde_height_scale=2.0, score_fontsize="medium")
         >>> plotter.plot(data, "Intensity", periods_dict, reference_events)
     """
 
@@ -153,16 +150,11 @@ class PeriodDistributionPlotter(BasePlotter):
         # FIGURE CONFIGURATION
         super().__init__(ax=ax, language=language)
         self.update_config(
-            # Display Mode
-            display_mode="kde",  # "kde", "histogram", or "cumulative_histogram"
             # KDE Configuration
             kde_resolution=1000,  # Number of points for KDE evaluation
-            kde_height_scale=1.5,  # Scale factor for distribution height normalization
-            kde_alpha=0.99,  # Transparency of distribution fills
-            kde_edge_linewidth=0.5,  # Line width for distribution edges
-            # Histogram Configuration
-            hist_bins=20,  # Number of bins for histogram mode
-            hist_rwidth=0.9,  # Relative width of histogram bars
+            kde_height_scale=1.5,  # Scale factor for KDE height normalization
+            kde_alpha=0.99,  # Transparency of KDE fills
+            kde_edge_linewidth=0.5,  # Line width for KDE edges
             # Reference Events Configuration
             reference_event_linewidth=2.5,  # Line width for reference event vertical lines
             reference_event_label_fontsize="large",  # Font size for reference event labels
@@ -176,7 +168,6 @@ class PeriodDistributionPlotter(BasePlotter):
             score_fontsize="small",  # Font size for percentage scores
             score_bbox_linewidth=0.67,  # Border width for score label boxes
             score_bbox_pad=0.2,  # Padding inside score label boxes
-            show_first_period_scores=True,  # Whether to display percentage scores for the first period
             # Tick Configuration
             tick_length_x=2,  # Length of x-axis ticks
             tick_length_y=0,  # Length of y-axis ticks
@@ -209,16 +200,11 @@ class PeriodDistributionPlotter(BasePlotter):
             Dict[str, str]: Dictionary mapping parameter names to their descriptions.
         """
         return {
-            # Display Mode
-            "display_mode": "Type of distribution plot: 'kde', 'histogram', or 'cumulative_histogram'",
             # KDE Configuration
             "kde_resolution": "Number of points for KDE evaluation (higher = smoother curves)",
-            "kde_height_scale": "Scale factor for distribution height normalization (used by both KDE and histogram)",
-            "kde_alpha": "Transparency of distribution fills (used by both KDE and histogram)",
-            "kde_edge_linewidth": "Line width for distribution edges (used by both KDE and histogram)",
-            # Histogram Configuration
-            "hist_bins": "Number of bins for histogram mode",
-            "hist_rwidth": "Relative width of histogram bars (0-1)",
+            "kde_height_scale": "Scale factor for KDE height normalization",
+            "kde_alpha": "Transparency of KDE fills (0=transparent, 1=opaque)",
+            "kde_edge_linewidth": "Line width for KDE curve edges",
             # Reference Events Configuration
             "reference_event_linewidth": "Line width for vertical reference lines",
             "reference_event_label_fontsize": "Font size for reference event labels",
@@ -232,7 +218,6 @@ class PeriodDistributionPlotter(BasePlotter):
             "score_fontsize": "Font size for percentage scores",
             "score_bbox_linewidth": "Border width for score label boxes",
             "score_bbox_pad": "Padding inside score label boxes",
-            "show_first_period_scores": "Whether to display percentage scores for the first period",
             # Tick Configuration
             "tick_length_x": "Length of x-axis tick marks",
             "tick_length_y": "Length of y-axis tick marks",
@@ -319,179 +304,49 @@ class PeriodDistributionPlotter(BasePlotter):
             ),
             rotation_mode="anchor",
         )
-    
-    def _add_event_label_other(self, reference_event, variable):
-        """Add formatted text label for a reference event."""
-        label_text = self._get_localized_text(reference_event[1]["label"])
-
-        self.ax.text(
-            x=reference_event[1][variable],
-            y=len(self._highlighted_periods),
-            s=label_text,
-            ha="left",
-            va="bottom",
-            fontsize=self._config["reference_event_label_fontsize"],
-            fontweight="bold",
-            color="white",
-            rotation=self._config["reference_event_label_rotation"],
-            zorder=3.1,
-            bbox=dict(
-                facecolor='red',
-                edgecolor='red',
-                alpha=1,
-                linewidth=self._config["reference_event_label_bbox_linewidth"],
-                boxstyle="round",
-            ),
-            rotation_mode="anchor",
-        )
-
-    def _merge_overlapping_events(self, reference_events, variable):
-        """Merge reference events that share the same value for a variable.
-
-        When multiple events have the same value, their labels are combined
-        with ' / ' separator. Returns a DataFrame with unique values and
-        merged labels.
-        """
-
-        return (
-            reference_events.groupby(variable, sort=False)
-            .agg(label=("label", " / ".join))
-            .reset_index()
-        )
 
     def _plot_reference_events(self, reference_events, variable):
         """Draw vertical lines and labels for reference events."""
-        
+        # Vertical lines
+        self.ax.vlines(
+            reference_events[variable],
+            ymin=0,
+            ymax=len(self._highlighted_periods),
+            color=self.colors.black,
+            linestyle="--",
+            linewidth=self._config["reference_event_linewidth"],
+            zorder=3,
+        )
+
         # Text labels with boxes
-        for i,reference_event in enumerate(reference_events.iterrows()):
-            if i==3:
-                # Vertical lines
-                self.ax.vlines(
-                    reference_event[1][variable],
-                    ymin=0,
-                    ymax=len(self._highlighted_periods),
-                    color='red',
-                    linestyle="--",
-                    linewidth=self._config["reference_event_linewidth"],
-                    zorder=3,
-                )
-                self._add_event_label_other(reference_event, variable)
-            else:
-                # Vertical lines
-                self.ax.vlines(
-                    reference_event[1][variable],
-                    ymin=0,
-                    ymax=len(self._highlighted_periods),
-                    color=self.colors.black,
-                    linestyle="--",
-                    linewidth=self._config["reference_event_linewidth"],
-                    zorder=3,
-                )
-                self._add_event_label(reference_event, variable)
+        for reference_event in reference_events.iterrows():
+            self._add_event_label(reference_event, variable)
 
     def _calculate_percentile_scores(self, data, reference_events, variable):
         """Calculate percentile scores for reference events across periods."""
-        # 1. Sort thresholds to ensure monotonic bins
-        sorted_thresholds = reference_events.set_index("label")[variable].sort_values()
-        labels = list(sorted_thresholds.index)
 
-        # 2. Define bin edges: [-inf, T1, T2, ..., TN, inf]
-        bins = np.concatenate(([-np.inf], sorted_thresholds.values, [np.inf]))
-
-        # 3. Create labels for the N+1 bins
-        # The first N bins take the threshold labels, the last takes label_max
-        out_labels = labels + [f"_max"]
-
-        # 4. Segment the data and calculate frequencies
-        # include_lowest=True ensures the interval is [min, T1] for the first bin
-        distribution = pd.concat(
-            [
-                pd.cut(
-                    data.query(f"`{period}`")[variable],
-                    bins=bins,
-                    labels=out_labels,
-                    include_lowest=True,
-                )
-                .value_counts(normalize=True)
-                .reindex(out_labels)  # Ensure order and handle empty bins
-                .fillna(0)
-                .to_frame(name=period)
-                for period in self._highlighted_periods.keys()
-            ],
-            axis=1,
-        )
-
-        return distribution * 100
-
-    def _calculate_cumulative_scores(self, data, reference_events, variable):
-        """Calculate cumulative scores (>= threshold) for reference events."""
-        thresholds, labels = self._get_cumulative_thresholds(
-            reference_events, variable, None, None
-        )
-        return self._calculate_cumulative_scores_for_thresholds(
-            data, variable, thresholds, labels
-        )
-
-    def _get_cumulative_thresholds(
-        self, reference_events, variable, min_value=None, max_value=None
-    ):
-        """Get sorted thresholds for cumulative scores within bounds."""
-        sorted_thresholds = reference_events.set_index("label")[variable].sort_values()
-        thresholds = sorted_thresholds.to_numpy()
-        labels = list(sorted_thresholds.index)
-
-        if (
-            min_value is not None
-            and max_value is not None
-            and np.isfinite(min_value)
-            and np.isfinite(max_value)
-            and min_value > max_value
-        ):
-            min_value, max_value = max_value, min_value
-
-        if min_value is not None and np.isfinite(min_value):
-            keep = thresholds >= min_value
-            thresholds = thresholds[keep]
-            labels = [labels[i] for i in np.where(keep)[0]]
-
-            if thresholds.size == 0 or not np.isclose(thresholds[0], min_value):
-                thresholds = np.concatenate(([min_value], thresholds))
-                labels = ["_min"] + labels
-
-        if max_value is not None and np.isfinite(max_value):
-            keep = thresholds <= max_value
-            thresholds = thresholds[keep]
-            labels = [labels[i] for i in np.where(keep)[0]]
-
-        return thresholds, labels
-
-    def _calculate_cumulative_scores_for_thresholds(
-        self, data, variable, thresholds, labels
-    ):
-        """Calculate cumulative scores (>= threshold) for given thresholds."""
-        scores = {}
-        for period in self._highlighted_periods.keys():
-            values = data.query(f"`{period}`")[variable].dropna().to_numpy()
-            if values.size == 0:
-                scores[period] = np.zeros_like(thresholds, dtype=float)
-                continue
-            scores[period] = (
-                (values[:, None] >= thresholds[None, :]).mean(axis=0) * 100
+        def _compute_variable_percentiles(s, variable):
+            return pd.Series(
+                {
+                    period: stats.percentileofscore(
+                        data.query(f"`{period}`")[variable],
+                        s[variable],
+                        kind="rank",
+                    )
+                    for period in self._highlighted_periods.keys()
+                }
             )
 
-        return pd.DataFrame(scores, index=labels)
-
-    def _get_distribution_plot_kwargs(self, period_index):
-        """Get common plot kwargs for both KDE and histogram."""
-        return dict(
-            color=self.colors.get_color(period_index),
-            zorder=1
-            + (len(self._highlighted_periods) - 1 - period_index)
-            / len(self._highlighted_periods),
-            alpha=self._config["kde_alpha"],
-            linewidth=self._config["kde_edge_linewidth"],
-            edgecolor=self.colors.black,
+        scores = (
+            reference_events.set_index("label")
+            .apply(lambda x: _compute_variable_percentiles(x, variable), axis=1)
+            .T.assign(_max=101)
+            .T.sort_values(by=list(self._highlighted_periods.keys())[0])
         )
+
+        scores.loc["_max"] = 100
+        scores -= scores.shift(1).fillna(0)
+        return scores
 
     def _plot_single_kde(
         self, events, variable, period_index, max_value=None, min_value=None
@@ -508,95 +363,20 @@ class PeriodDistributionPlotter(BasePlotter):
             kde_values / kde_values.max() * self._config["kde_height_scale"]
         ) + period_index
 
+        plot_kwargs = dict(
+            color=self.colors.get_color(period_index),
+            zorder=1
+            + (len(self._highlighted_periods) - 1 - period_index)
+            / len(self._highlighted_periods),
+            alpha=self._config["kde_alpha"],
+            linewidth=self._config["kde_edge_linewidth"],
+            edgecolor=self.colors.black,
+        )
+
         self.ax.fill_between(
             x_values,
             [period_index] * len(kde_values),
             kde_values,
-            **self._get_distribution_plot_kwargs(period_index),
-        )
-
-    def _plot_single_histogram(
-        self, events, variable, period_index, max_value=None, min_value=None
-    ):
-        """Plot histogram for a single period."""
-        values = events[variable].values
-        _mn = events[variable].min() if min_value is None else min_value
-        _mx = events[variable].max() if max_value is None else max_value
-        bin_edges = np.linspace(_mn, _mx, self._config["hist_bins"] + 1)
-
-        counts, _ = np.histogram(values, bins=bin_edges)
-        # Normalize so tallest bar matches kde_height_scale
-        bar_heights = (
-            counts / counts.max() * self._config["kde_height_scale"]
-            if counts.max() > 0
-            else counts
-        )
-
-        plot_kwargs = self._get_distribution_plot_kwargs(period_index)
-
-        self.ax.bar(
-            x=(bin_edges[:-1] + bin_edges[1:]) / 2,
-            height=bar_heights,
-            width=np.diff(bin_edges) * self._config["hist_rwidth"],
-            bottom=period_index,
-            align="center",
-            **plot_kwargs,
-        )
-
-    def _plot_single_cumulative_histogram(
-        self, events, variable, period_index, max_value=None, min_value=None
-    ):
-        """Plot cumulative histogram for a single period (from 100% to 0%)."""
-        values = events[variable].dropna().to_numpy()
-        if values.size == 0:
-            return
-
-        unique_vals, counts = np.unique(values, return_counts=True)
-        total = counts.sum()
-        height_scale = self._config["kde_height_scale"]
-
-        bound_min = unique_vals[0] if min_value is None else min_value
-        bound_max = unique_vals[-1] if max_value is None else max_value
-        if not np.isfinite(bound_min) or not np.isfinite(bound_max):
-            return
-        if bound_min > bound_max:
-            bound_min, bound_max = bound_max, bound_min
-
-        cum_counts = np.cumsum(counts)
-        in_bounds = (unique_vals >= bound_min) & (unique_vals <= bound_max)
-        x_points = unique_vals[in_bounds]
-
-        def _survival_at(x, side="left"):
-            if side == "right":
-                idx = np.searchsorted(unique_vals, x, side="right")
-            else:
-                idx = np.searchsorted(unique_vals, x, side="left")
-            count_le = cum_counts[idx - 1] if idx > 0 else 0
-            return (total - count_le) / total * height_scale
-
-        x_vals = [bound_min]
-        y_vals = [_survival_at(bound_min, side="left")]
-        current_x = bound_min
-        current_y = y_vals[0]
-
-        for x in x_points:
-            if x != current_x:
-                x_vals.append(x)
-                y_vals.append(current_y)
-            current_y = _survival_at(x, side="right")
-            x_vals.append(x)
-            y_vals.append(current_y)
-            current_x = x
-
-        if bound_max != current_x:
-            x_vals.append(bound_max)
-            y_vals.append(_survival_at(bound_max, side="left"))
-
-        plot_kwargs = self._get_distribution_plot_kwargs(period_index)
-        self.ax.fill_between(
-            x_vals,
-            [period_index] * len(x_vals),
-            period_index + np.array(y_vals),
             **plot_kwargs,
         )
 
@@ -609,9 +389,9 @@ class PeriodDistributionPlotter(BasePlotter):
         score_offset,
     ):
         """Add percentage score labels to the plot."""
-        for x_pos, score in zip(scores_positions, scores[highlighted_period].values):
+        for k, score in enumerate(scores[highlighted_period].values):
             ax_text(
-                x=x_pos,
+                x=scores_positions[k],
                 y=period_index + score_offset,
                 s=f"{np.abs(score):.0f}%",  # Absolute value to avoid negative zero
                 ha="center",
@@ -629,115 +409,37 @@ class PeriodDistributionPlotter(BasePlotter):
                 zorder=4,
             )
 
-    def _add_cumulative_score_lines(
-        self,
-        scores,
-        highlighted_period,
-        score_thresholds,
-        period_index,
-        min_value,
-        max_value,
-    ):
-        """Add cumulative score lines and labels for a period."""
-        if score_thresholds is None or len(score_thresholds) == 0:
-            return
-
-        if max_value is None or not np.isfinite(max_value):
-            return
-
-        if min_value is not None and np.isfinite(min_value):
-            x_range = max_value - min_value
-        else:
-            x_range = max_value - np.min(score_thresholds)
-        x_range = x_range if np.isfinite(x_range) and x_range > 0 else 0
-        x_pad = x_range * 0.01
-
-        n_lines = len(score_thresholds)
-        # offsets = np.linspace(1.0 / (n_lines + 1), n_lines / (n_lines + 1), n_lines)[::-1]
-
-        for (x_start, score) in zip(
-            score_thresholds, scores[highlighted_period].values
-        ):
-            #if np.isclose(score, 100.0):
-            #    continue
-            if score>95:
-                continue
-            y_line = period_index + score / 100 * self._config["kde_height_scale"]
-            # self.ax.hlines(
-            #     y_line,
-            #     x_start,
-            #     max_value,
-            #     color=self.colors.black,
-            #     linewidth=self._config["kde_edge_linewidth"],
-            #     zorder=3,
-            # )
-            ax_text(
-                x=x_start + x_pad,
-                y=y_line,
-                s=f"{np.abs(score):.0f}%",
-                ha="center",
-                va="bottom" if score <= 50 else "top",
-                fontsize=self._config["score_fontsize"],
-                fontstyle="italic",
-                fontweight="bold",
-                ax=self.ax,
-                bbox=dict(
-                    facecolor="whitesmoke",
-                    alpha=1,
-                    linewidth=self._config["score_bbox_linewidth"],
-                    boxstyle=f"round,pad={self._config['score_bbox_pad']}",
-                ),
-                zorder=4,
-            )
-
-    def _plot_distributions(
+    def _plot_kde_distributions(
         self,
         data,
         variable,
         scores_reference_events,
         score_positions_reference_events,
-        score_thresholds_reference_events=None,
         max_value=None,
         min_value=None,
     ):
-        """Plot distributions (KDE or histogram) for each highlighted period."""
-        if self._config["display_mode"] == "histogram":
-            plot_fn = self._plot_single_histogram
-        elif self._config["display_mode"] == "cumulative_histogram":
-            plot_fn = self._plot_single_cumulative_histogram
-        else:
-            plot_fn = self._plot_single_kde
+        """Plot KDE distributions for each highlighted period."""
         for i, highlighted_period in enumerate(self._highlighted_periods.keys()):
             # Get events for this period
             _events = data.query(f"`{highlighted_period}`")
 
-            # Plot distribution
-            plot_fn(_events, variable, i, max_value=max_value, min_value=min_value)
+            # Plot KDE
+            self._plot_single_kde(
+                _events, variable, i, max_value=max_value, min_value=min_value
+            )
 
             # Add percentage scores
-            # Skip first period if show_first_period_scores is False
             if (
                 scores_reference_events is not None
                 and not scores_reference_events.empty
-                and (i > 0 or self._config["show_first_period_scores"])
             ):
-                if self._config["display_mode"] == "cumulative_histogram":
-                    self._add_cumulative_score_lines(
-                        scores_reference_events,
-                        highlighted_period,
-                        score_thresholds_reference_events,
-                        i,
-                        min_value,
-                        max_value,
-                    )
-                else:
-                    self._add_percentage_scores(
-                        scores_reference_events,
-                        highlighted_period,
-                        score_positions_reference_events,
-                        i,
-                        self._config["score_offset"],
-                    )
+                self._add_percentage_scores(
+                    scores_reference_events,
+                    highlighted_period,
+                    score_positions_reference_events,
+                    i,
+                    self._config["score_offset"],
+                )
 
     def _calculate_score_positions(self, reference_events, variable, _mn, _mx, _scores):
         """Calculate positions for displaying percentile scores."""
@@ -757,11 +459,6 @@ class PeriodDistributionPlotter(BasePlotter):
             + [_mx]
         )
         return (_scores_positions_div[:-1] + _scores_positions_div[1:]) / 2
-
-    def _calculate_cumulative_score_positions(self, reference_events, variable):
-        """Calculate positions for cumulative scores (at lower thresholds)."""
-        sorted_thresholds = reference_events.set_index("label")[variable].sort_values()
-        return sorted_thresholds.to_numpy()
 
     def _add_period_lines(self, min_value):
         """Add horizontal lines and labels for each period."""
@@ -830,7 +527,7 @@ class PeriodDistributionPlotter(BasePlotter):
         bounds: Optional[List[float]] = None,
         cut_kdes: bool = True,
     ):
-        """Plot the distribution of a variable over specified periods.
+        """Plot the KDE distribution of a variable over specified periods.
 
         Args:
             data (pd.DataFrame): DataFrame containing the data to plot.
@@ -838,8 +535,7 @@ class PeriodDistributionPlotter(BasePlotter):
             periods_columns_labels (Dict[str, str]): Dictionary mapping period column names (boolean columns saying whether an event belongs to a period) to their labels.
             reference_events (Optional[pd.DataFrame]): Optional DataFrame for data of reference events (same structure as data).
             bounds (Optional[List[float]]): Optional bounds for the x-axis.
-            cut_kdes (bool): Whether to cut KDEs at the min/max values of the data. For
-                cumulative histograms, bounds are always applied.
+            cut_kdes (bool): Whether to cut the KDEs at the min/max values of the data.
         """
         periods = list(periods_columns_labels.keys())
         if not self._check_dataframe(data, [variable] + periods):
@@ -865,47 +561,29 @@ class PeriodDistributionPlotter(BasePlotter):
         self.ax.clear()
 
         # 4. Getting the scores and their positions for the reference data
-        _score_thresholds = None
         if reference_events is not None and not reference_events.empty:
-            # Merge events with identical values (avoids duplicate bin edges
-            # and overlapping labels)
-            _merged_events = self._merge_overlapping_events(reference_events, variable)
-
             # Plot reference events with lines and labels
-            self._plot_reference_events(_merged_events, variable)
+            self._plot_reference_events(reference_events, variable)
 
             # Compute scores and positions for reference data
-            if self._config["display_mode"] == "cumulative_histogram":
-                _score_thresholds, _score_labels = self._get_cumulative_thresholds(
-                    _merged_events, variable, min_value, max_value
-                )
-                _scores = self._calculate_cumulative_scores_for_thresholds(
-                    data, variable, _score_thresholds, _score_labels
-                )
-                _scores_positions = None
-            else:
-                _scores = self._calculate_percentile_scores(
-                    data, _merged_events, variable
-                )
-                _scores_positions = self._calculate_score_positions(
-                    _merged_events, variable, min_value, max_value, _scores
-                )
+            _scores = self._calculate_percentile_scores(
+                data, reference_events, variable
+            )
+            _scores_positions = self._calculate_score_positions(
+                reference_events, variable, min_value, max_value, _scores
+            )
         else:
             _scores = None
             _scores_positions = None
 
-        # 5. Plot distributions and scores
-        use_bounds = (
-            self._config["display_mode"] == "cumulative_histogram" or not cut_kdes
-        )
-        self._plot_distributions(
+        # 5. Plot KDE distributions and scores
+        self._plot_kde_distributions(
             data,
             variable,
             _scores,
             _scores_positions,
-            score_thresholds_reference_events=_score_thresholds,
-            max_value=max_value if use_bounds else None,
-            min_value=min_value if use_bounds else None,
+            max_value=None if cut_kdes else max_value,
+            min_value=None if cut_kdes else min_value,
         )
 
         # 6. Apply styling

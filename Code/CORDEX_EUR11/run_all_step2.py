@@ -61,30 +61,40 @@ if __name__ == "__main__":
         print("Running plot_4_panel_hot_days...")
         #plot_4_panel_hot_days_RWL(read_directory=read_directory,write_directory=write_directory,start_year=2026,end_year=end_year,need_to_compute_labels=True)
         print("Done.")
+    if overwrite_files or exists(join(write_directory,'movement_4_panels.pdf'))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running plot_4_movement_maps...")
+        #plot_4_movement_maps(write_directory=write_directory)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,f'trends_nb_mean_rest_hot_days_{end_year_ref+1}_{end_year}.pdf'))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running plot_grid_point_trends...")
+        plot_grid_point_trends(read_directory,write_directory,start_year=end_year_ref+1,end_year=end_year)
+        print("Done.")
     if overwrite_files or exists(join(write_directory,'hot_days_4_panels_raw_models.pdf'))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running make_animation_selected_models...")
-        make_animation_selected_models(read_directory=read_directory,write_directory=write_directory,other_data_path=other_data_path)
+        #make_animation_selected_models(read_directory=read_directory,write_directory=write_directory,other_data_path=other_data_path)
         print("Done.")
     if overwrite_files or exists(join(write_directory,"df_mk_trends_1975_2025.csv"))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running compute_mk_trends...")
-        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=1975,end_year=2025,split_year_population=2025,yearly_aggregation=False)
+        #compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=1975,end_year=2025,split_year_population=2025,yearly_aggregation=False)
         print("Done.")
     if overwrite_files or exists(join(write_directory,"df_mk_trends_2026_2099.csv"))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running compute_mk_trends...")
-        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=2026,end_year=2099,split_year_population=2025,yearly_aggregation=False)
+        #compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=2026,end_year=2099,split_year_population=2025,yearly_aggregation=False)
         print("Done.")
     if overwrite_files or exists(join(write_directory,"df_mk_trends_1975_2025_year_agg.csv"))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running compute_mk_trends...")
-        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=1975,end_year=2025,split_year_population=2025,yearly_aggregation=True)
+        #compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=1975,end_year=2025,split_year_population=2025,yearly_aggregation=True)
         print("Done.")
     if overwrite_files or exists(join(write_directory,"df_mk_trends_2026_2099_year_agg.csv"))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running compute_mk_trends...")
-        compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=2026,end_year=2099,split_year_population=2025,yearly_aggregation=True)
+        #compute_mk_trends(read_directory=write_directory,other_data_path=other_data_path,start_year=2026,end_year=2099,split_year_population=2025,yearly_aggregation=True)
         print("Done.")
     if (overwrite_files or exists(join(write_directory,"all_ssp_distrib_Exposed_population.pdf"))==False):
         print("--- %.0f seconds ---" % (time.time() - start_time))

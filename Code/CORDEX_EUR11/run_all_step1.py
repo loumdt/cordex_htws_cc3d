@@ -93,7 +93,7 @@ if __name__ == "__main__":
     if overwrite_files or exists(join(write_directory,"mk_da_nb_mean_rest_hot_days.nc"))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running compute_grid_points_stats ...")
-        compute_grid_points_stats(write_directory=write_directory,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref)
+        #compute_grid_points_stats(write_directory=write_directory,start_year=start_year,end_year=end_year,start_year_ref=start_year_ref,end_year_ref=end_year_ref,compute_trends=False)
         print("Done.")
     #%% Compute Heatwaves indices database
     if overwrite_files or exists(join(write_directory,"df_htws.csv"))==False:

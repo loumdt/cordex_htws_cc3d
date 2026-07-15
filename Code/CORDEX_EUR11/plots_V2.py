@@ -9,6 +9,7 @@ from abc import ABC
 import matplotlib.pyplot as plt
 
 
+
 @dataclass
 class ColorScheme:
     """Class to manage color schemes for plots."""
@@ -481,10 +482,10 @@ class PeriodDistributionPlotter(BasePlotter):
 
         return pd.DataFrame(scores, index=labels)
 
-    def _get_distribution_plot_kwargs(self, period_index):
+    def _get_distribution_plot_kwargs(self, period_index,color):
         """Get common plot kwargs for both KDE and histogram."""
         return dict(
-            color=self.colors.get_color(period_index),
+            color=color,#self.colors.get_color(period_index),
             zorder=1
             + (len(self._highlighted_periods) - 1 - period_index)
             / len(self._highlighted_periods),
@@ -494,7 +495,7 @@ class PeriodDistributionPlotter(BasePlotter):
         )
 
     def _plot_single_kde(
-        self, events, variable, period_index, max_value=None, min_value=None
+        self, events, variable, period_index, my_color, max_value=None, min_value=None,
     ):
         """Plot KDE for a single period."""
         _kde = stats.gaussian_kde(events[variable].values)
@@ -512,11 +513,11 @@ class PeriodDistributionPlotter(BasePlotter):
             x_values,
             [period_index] * len(kde_values),
             kde_values,
-            **self._get_distribution_plot_kwargs(period_index),
+            **self._get_distribution_plot_kwargs(period_index,my_color),
         )
 
     def _plot_single_histogram(
-        self, events, variable, period_index, max_value=None, min_value=None
+        self, events, variable, period_index, my_color, max_value=None, min_value=None
     ):
         """Plot histogram for a single period."""
         values = events[variable].values
@@ -532,7 +533,7 @@ class PeriodDistributionPlotter(BasePlotter):
             else counts
         )
 
-        plot_kwargs = self._get_distribution_plot_kwargs(period_index)
+        plot_kwargs = self._get_distribution_plot_kwargs(period_index,my_color)
 
         self.ax.bar(
             x=(bin_edges[:-1] + bin_edges[1:]) / 2,
@@ -544,7 +545,7 @@ class PeriodDistributionPlotter(BasePlotter):
         )
 
     def _plot_single_cumulative_histogram(
-        self, events, variable, period_index, max_value=None, min_value=None
+        self, events, variable, period_index, my_color, max_value=None, min_value=None,
     ):
         """Plot cumulative histogram for a single period (from 100% to 0%)."""
         values = events[variable].dropna().to_numpy()
@@ -592,7 +593,7 @@ class PeriodDistributionPlotter(BasePlotter):
             x_vals.append(bound_max)
             y_vals.append(_survival_at(bound_max, side="left"))
 
-        plot_kwargs = self._get_distribution_plot_kwargs(period_index)
+        plot_kwargs = self._get_distribution_plot_kwargs(period_index,my_color)
         self.ax.fill_between(
             x_vals,
             [period_index] * len(x_vals),
@@ -696,6 +697,7 @@ class PeriodDistributionPlotter(BasePlotter):
         variable,
         scores_reference_events,
         score_positions_reference_events,
+        my_color,
         score_thresholds_reference_events=None,
         max_value=None,
         min_value=None,
@@ -712,7 +714,7 @@ class PeriodDistributionPlotter(BasePlotter):
             _events = data.query(f"`{highlighted_period}`")
 
             # Plot distribution
-            plot_fn(_events, variable, i, max_value=max_value, min_value=min_value)
+            plot_fn(_events, variable, i, my_color=my_color, max_value=max_value, min_value=min_value)
 
             # Add percentage scores
             # Skip first period if show_first_period_scores is False
@@ -829,6 +831,7 @@ class PeriodDistributionPlotter(BasePlotter):
         reference_events: Optional[pd.DataFrame] = None,
         bounds: Optional[List[float]] = None,
         cut_kdes: bool = True,
+        my_color: str = None,
     ):
         """Plot the distribution of a variable over specified periods.
 
@@ -903,6 +906,7 @@ class PeriodDistributionPlotter(BasePlotter):
             variable,
             _scores,
             _scores_positions,
+            my_color,
             score_thresholds_reference_events=_score_thresholds,
             max_value=max_value if use_bounds else None,
             min_value=min_value if use_bounds else None,
@@ -919,6 +923,7 @@ class PeriodDistributionPlotter(BasePlotter):
         periods_columns_labels: Dict[str, str],
         bounds: Optional[List[float]] = None,
         cut_kdes: bool = True,
+        my_color: 'str'="#E8AE68",
     ):
         """Create 1 figure explaining the first step to read the plot: the KDEs. It plots only the KDE for the first period."""
         self.plot(
@@ -932,6 +937,8 @@ class PeriodDistributionPlotter(BasePlotter):
             reference_events=None,
             bounds=bounds,
             cut_kdes=cut_kdes,
+            my_color=my_color
+
         )
         return
 
@@ -943,6 +950,7 @@ class PeriodDistributionPlotter(BasePlotter):
         reference_events: Optional[pd.DataFrame] = None,
         bounds: Optional[List[float]] = None,
         cut_kdes: bool = True,
+        my_color: str = "#E8AE68",
     ):
         """Create 1 figure explaining the first step to read the plot: the KDEs. It plots only the KDE for the first period."""
         self.plot(
@@ -956,6 +964,7 @@ class PeriodDistributionPlotter(BasePlotter):
             reference_events=reference_events,
             bounds=bounds,
             cut_kdes=cut_kdes,
+            my_color=my_color,
         )
         return
 

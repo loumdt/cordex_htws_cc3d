@@ -549,7 +549,7 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
 
     # Create DataFrame
     df_htws = pd.DataFrame(data=None,columns=['Year','Start Date','End Date','RWL_1','RWL_2','RWL_3','RWL_4', # Account for the fact that RWL can overlap. Create 4 RWL columns to avoid edge cases but RWL_3 and RWL_4 will very likely remain empty
-    'Intensity','Spatial extent','Accumulated area','Duration','Max','HWMId_sum',
+    'Intensity','Spatial extent', 'Mean spatial extent','Accumulated area','Duration','Max','HWMId_sum',
     'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1',
     'Exposed_population_ssp2','HWMId_pop_ssp2','Exposed_population_ssp3','HWMId_pop_ssp3',
     'Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5',
@@ -557,8 +557,8 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
     'Total_exposed_population_ssp3','Total_exposed_population_ssp4','Total_exposed_population_ssp5','Global_centroid','Global_centroid_date','Centroid_p1','Centroid_p2',
     'GCM','RCM','simulation','version','ensemble','version_date','calendar','bias-adjusted','grid_mapping','temp_file_path']) # Create DataFrame
 
-    df_summers = pd.DataFrame(data=None,columns=['Year','Frequency','Nb hot days','Accumulated area summer','Mean duration','Max duration',
-    'Mean spatial extent', 'Max spatial extent', 'Mean accumulated area', 'Max accumulated area','Mean speed','Max speed','Mean distance','Max distance','temp_file_path'],index=range((end_year-start_year+1)))
+    df_summers = pd.DataFrame(data=None,columns=['Year','Frequency','Nb hot days','Accumulated area summer','Mean duration summer','Max duration summer',
+    'Mean spatial extent summer', 'Max spatial extent summer', 'Mean accumulated area summer', 'Max accumulated area summer','Mean speed summer','Max speed summer','Mean distance summer','Max distance summer','temp_file_path'],index=range((end_year-start_year+1)))
     # Initialize variables used to find the correct temperature file to load for each year
     loaded_temp_file = None
     old_loaded_temp_file = None
@@ -643,9 +643,11 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
                 # Compute weights for area-weighted mean
                 weights = da_cell_area.where(labels_bool_2D, drop=True)
                 weights.name = "weights"
-
+                daily_spatial_extent = (da_bool_htw*da_cell_area.data).sum(dim=('lat','lon'))
+                daily_spatial_extent = daily_spatial_extent.where(daily_spatial_extent>0,drop=True)
                 df_htws.loc[label,'Intensity'] = da_temp_htw.weighted(weights.fillna(0)).mean().data
                 df_htws.loc[label,'Spatial extent'] = (da_cell_area*labels_bool_2D).sum().data
+                df_htws.loc[label,'Mean spatial extent'] = daily_spatial_extent.mean().data
                 df_htws.loc[label,'Accumulated area'] = da_area_htw.sum().data
                 cumul_area_summer += df_htws.loc[label,'Accumulated area']
                 df_htws.loc[label,'Max'] = da_temp_htw.max().data
@@ -725,16 +727,16 @@ def create_heatwaves_indices_database(read_directory_historical,read_directory_r
             df_summers.loc[n_summer,'Nb hot days'] = 0
             df_summers.loc[n_summer,'Accumulated area summer'] = 0
         df_htws_year = df_htws[df_htws["Year"]==year]
-        df_summers.loc[n_summer,'Mean duration'] = df_htws_year['Duration'].mean()
-        df_summers.loc[n_summer,'Max duration'] = df_htws_year['Duration'].max()
-        df_summers.loc[n_summer,'Mean spatial extent'] = df_htws_year['Spatial extent'].mean()
-        df_summers.loc[n_summer,'Max spatial extent'] = df_htws_year['Spatial extent'].max()
-        df_summers.loc[n_summer,'Mean accumulated area'] = df_htws_year['Accumulated area'].mean()
-        df_summers.loc[n_summer,'Max accumulated area'] = df_htws_year['Accumulated area'].max()
-        df_summers.loc[n_summer,'Mean speed'] = df_htws_year['Speed'].mean()
-        df_summers.loc[n_summer,'Max speed'] = df_htws_year['Speed'].max()
-        df_summers.loc[n_summer,'Mean distance'] = df_htws_year['Distance'].mean()
-        df_summers.loc[n_summer,'Max distance'] = df_htws_year['Distance'].max()
+        df_summers.loc[n_summer,'Mean duration summer'] = df_htws_year['Duration'].mean()
+        df_summers.loc[n_summer,'Max duration summer'] = df_htws_year['Duration'].max()
+        df_summers.loc[n_summer,'Mean spatial extent summer'] = df_htws_year['Spatial extent'].mean()
+        df_summers.loc[n_summer,'Max spatial extent summer'] = df_htws_year['Spatial extent'].max()
+        df_summers.loc[n_summer,'Mean accumulated area summer'] = df_htws_year['Accumulated area'].mean()
+        df_summers.loc[n_summer,'Max accumulated area summer'] = df_htws_year['Accumulated area'].max()
+        df_summers.loc[n_summer,'Mean speed summer'] = df_htws_year['Speed'].mean()
+        df_summers.loc[n_summer,'Max speed summer'] = df_htws_year['Speed'].max()
+        df_summers.loc[n_summer,'Mean distance summer'] = df_htws_year['Distance'].mean()
+        df_summers.loc[n_summer,'Max distance summer'] = df_htws_year['Distance'].max()
 
 
     print(f'{heatwaves_year} years with heatwaves out of {end_year-start_year+1} years.')
@@ -772,7 +774,7 @@ def mylog(x):
         res = np.nan
     return res
 
-def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,start_year_ref=1975,end_year_ref=2025):
+def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,start_year_ref=1975,end_year_ref=2025,compute_trends=False):
     for i,year in tqdm(enumerate(range(start_year,end_year+1))):
         da_label = xr.open_dataset(join(write_directory,f"labels_cc3d_year_{year}_ref_{start_year_ref}_{end_year_ref}.nc"),engine='netcdf4').label
         if i==0:
@@ -787,11 +789,9 @@ def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,star
                 lon=(["lon"], lon),
                 lat=(["lat"], lat),
                 time=time,
-                reference_time=reference_time,
                 ),
             attrs=dict(
-                description="Number of hot days",
-                units="days",
+                description="Number of hot days per JJA season",
                 ),
             )
             da_nb_max_continuous_hot_days = da_nb_hot_days.copy()
@@ -830,6 +830,13 @@ def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,star
         da_nb_min_rest_hot_days.data[i,:,:] = stack_where_rest.min(dim='time').fillna(JJA_duration).data
         da_nb_mean_rest_hot_days.data[i,:,:] = stack_where_rest.mean(dim='time',skipna=True).fillna(JJA_duration).data
 
+    da_nb_hot_days = da_nb_hot_days.to_dataset(name='hot_days')
+    da_nb_max_continuous_hot_days = da_nb_max_continuous_hot_days.to_dataset(name='hot_days')
+    da_nb_mean_continuous_hot_days = da_nb_mean_continuous_hot_days.to_dataset(name='hot_days')
+    da_nb_min_rest_hot_days = da_nb_min_rest_hot_days.to_dataset(name='hot_days')
+    da_nb_max_rest_hot_days = da_nb_max_rest_hot_days.to_dataset(name='hot_days')
+    da_nb_mean_rest_hot_days = da_nb_mean_rest_hot_days.to_dataset(name='hot_days')
+
     da_nb_hot_days.to_netcdf(join(write_directory,'da_nb_hot_days.nc'))
     da_nb_max_continuous_hot_days.to_netcdf(join(write_directory,'da_nb_max_continuous_hot_days.nc'))
     da_nb_mean_continuous_hot_days.to_netcdf(join(write_directory,'da_nb_mean_continuous_hot_days.nc'))
@@ -837,55 +844,22 @@ def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,star
     da_nb_max_rest_hot_days.to_netcdf(join(write_directory,'da_nb_max_rest_hot_days.nc'))
     da_nb_mean_rest_hot_days.to_netcdf(join(write_directory,'da_nb_mean_rest_hot_days.nc'))
 
-    da_dict = {'da_nb_hot_days':da_nb_hot_days,'da_nb_max_continuous_hot_days':da_nb_max_continuous_hot_days,'da_nb_mean_continuous_hot_days':da_nb_mean_continuous_hot_days,
-    'da_nb_min_rest_hot_days':da_nb_min_rest_hot_days,'da_nb_max_rest_hot_days':da_nb_max_rest_hot_days,'da_nb_mean_rest_hot_days':da_nb_mean_rest_hot_days}
-
-    for da_name in tqdm(da_dict.keys()):
-        da = da_dict[da_name]
-        da = da.astype(float)
-        if 'ERA5' in write_directory.split('/') or 'output_ERA5' in write_directory.split('/'): # Only for 1975-2025 period
-            func = partial(
-                mk_wrapper,
-                dates=np.array([pd.Timestamp(i).to_pydatetime() for i in da.time.data]),
-                resolution=0.9,
-            )
-
-            p, ss, slope, lcl, ucl = xr.apply_ufunc(
-                func,
-                da,
-                input_core_dims=[["time"]],
-                output_core_dims=[[], [], [], [], []],
-                output_dtypes=[float, float, float, float, float],
-                vectorize=True,
-                dask="parallelized",
-            )
-
-            mk_da = xr.DataArray(
-                data=[p.data, ss.data, slope.data, lcl.data, ucl.data],
-                dims=["value", "lat", "lon"],
-                coords=dict(
-                    lon=(["lon"], lon),
-                    lat=(["lat"], lat),
-                    value=['p', 'ss', 'slope', 'lcl', 'ucl'],
-                        ),
-
-                attrs=dict(
-                    description="Mann-Kendall trend test",
-                ),
-            )
-            mk_da.to_netcdf(join(write_directory,f"mk_{da_name}_{start_year_ref}_{end_year_ref}.nc"))
-        else: # Compute trends for both period
-            for (start,end) in [(start_year_ref,end_year_ref),(end_year_ref+1,end_year)]:
-                sub_da = da.sel(time=(da.time.dt.year>=start)&(da.time.dt.year<=end))
+    da_dict = {'da_nb_hot_days':da_nb_hot_days,'da_nb_max_continuous_hot_days':da_nb_max_continuous_hot_days,
+    'da_nb_min_rest_hot_days':da_nb_min_rest_hot_days}#,'da_nb_max_rest_hot_days':da_nb_max_rest_hot_days,'da_nb_mean_rest_hot_days':da_nb_mean_rest_hot_days}
+    if compute_trends:
+        for da_name in tqdm(da_dict.keys()):
+            da = da_dict[da_name].hot_days
+            da = da.astype(float)
+            if 'ERA5' in write_directory.split('/') or 'output_ERA5' in write_directory.split('/'): # Only for 1975-2025 period
                 func = partial(
                     mk_wrapper,
-                    dates=np.array([pd.Timestamp(i).to_pydatetime() for i in sub_da.time.data]),
-                    resolution=0.01,
+                    dates=np.array([pd.Timestamp(i).to_pydatetime() for i in da.time.data]),
+                    resolution=0.9,
                 )
 
                 p, ss, slope, lcl, ucl = xr.apply_ufunc(
                     func,
-                    sub_da,
+                    da,
                     input_core_dims=[["time"]],
                     output_core_dims=[[], [], [], [], []],
                     output_dtypes=[float, float, float, float, float],
@@ -906,7 +880,133 @@ def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,star
                         description="Mann-Kendall trend test",
                     ),
                 )
+                mk_da = mk_da.to_dataset(name="trend")
                 mk_da.to_netcdf(join(write_directory,f"mk_{da_name}_{start_year_ref}_{end_year_ref}.nc"))
+            else: # Compute trends for both periods
+                for (start,end) in [(start_year_ref,end_year_ref),(end_year_ref+1,end_year)]:
+                    sub_da = da.sel(time=(da.time.dt.year>=start)&(da.time.dt.year<=end))
+                    func = partial(
+                        mk_wrapper,
+                        dates=np.array([pd.Timestamp(i).to_pydatetime() for i in sub_da.time.data]),
+                        resolution=0.01,
+                    )
+
+                    p, ss, slope, lcl, ucl = xr.apply_ufunc(
+                        func,
+                        sub_da,
+                        input_core_dims=[["time"]],
+                        output_core_dims=[[], [], [], [], []],
+                        output_dtypes=[float, float, float, float, float],
+                        vectorize=True,
+                        dask="parallelized",
+                    )
+
+                    mk_da = xr.DataArray(
+                        data=[p.data, ss.data, slope.data, lcl.data, ucl.data],
+                        dims=["value", "lat", "lon"],
+                        coords=dict(
+                            lon=(["lon"], lon),
+                            lat=(["lat"], lat),
+                            value=['p', 'ss', 'slope', 'lcl', 'ucl'],
+                                ),
+
+                        attrs=dict(
+                            description="Mann-Kendall trend test",
+                        ),
+                    )
+                    mk_da = mk_da.to_dataset(name="trend")
+                    mk_da.to_netcdf(join(write_directory,f"mk_{da_name}_{start}_{end}.nc"))
+    return
+
+def plot_grid_point_trends(read_directory,write_directory,start_year=2026,end_year=2099):
+    df_htws_BC_results = pd.read_csv(join(write_directory,'df_htws_BC_results.csv'),header=0,index_col=0)
+    df_ERA5 = df_htws_BC_results[df_htws_BC_results['model']=='ERA5']
+    df_htws_BC_results = df_htws_BC_results[df_htws_BC_results['model']!='ERA5']
+    model_list = np.unique(df_htws_BC_results['model'])
+
+    model_name_dict = {
+    'CLMcom_MOHC-HadGEM2-ES_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'A45',
+    'CLMcom_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'B45',
+    'CNRM_CNRM-CERFACS-CNRM-CM5_rcp45_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'D45',
+    'DMI_NCC-NorESM1-M_rcp45_r1i1p1_DMI-HIRHAM5_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'E45',
+    'GERICS_NCC-NorESM1-M_rcp45_r1i1p1_GERICS-REMO2015_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'F45',
+    'KNMI_ICHEC-EC-EARTH_rcp45_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'H45',
+    'MPI-CSC_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_MPI-CSC-REMO2009_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'J45',
+    'CLMcom_MOHC-HadGEM2-ES_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'A85',
+    'CLMcom_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'B85',
+    'CNRM_MOHC-HadGEM2-ES_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'C85',
+    'CNRM_CNRM-CERFACS-CNRM-CM5_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'D85',
+    'DMI_NCC-NorESM1-M_rcp85_r1i1p1_DMI-HIRHAM5_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'E85',
+    'GERICS_NCC-NorESM1-M_rcp85_r1i1p1_GERICS-REMO2015_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'F85',
+    'ICTP_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_ICTP-RegCM4-6_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'G85',
+    'KNMI_ICHEC-EC-EARTH_rcp85_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'H85',
+    'MOHC_ICHEC-EC-EARTH_rcp85_r12i1p1_MOHC-HadREM3-GA7-05_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'I85',
+    'MPI-CSC_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_MPI-CSC-REMO2009_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'J85',
+    'SMHI_ICHEC-EC-EARTH_rcp85_r1i1p1_SMHI-RCA4_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'K85',
+    }
+
+    model_list_ordered = [mod for mod in model_name_dict.keys() if mod in model_list]
+
+    proj_pc = ccrs.PlateCarree()
+    for nc_file in ['da_nb_hot_days']:#,'da_nb_max_continuous_hot_days','da_nb_min_rest_hot_days']:
+        print(nc_file)
+        fig,axes = plt.subplots(3,3,figsize=(12,10),subplot_kw={'projection':proj_pc},gridspec_kw={'hspace':0.02,'wspace':0.1})
+        max_val=0
+        min_val=0
+        for i,model in enumerate(model_list_ordered):
+            da_model = xr.open_dataset(join(read_directory,model,f"mk_{nc_file}_{start_year}_{end_year}.nc"),engine='netcdf4').trend
+            da_slope = da_model.sel(value='slope')*10 # Multiply by 10 to make per decade value
+            max_val = np.max([max_val,da_slope.max().data])
+            min_val = np.min([min_val,da_slope.min().data])
+        min_val_plot = min(np.round(-np.abs(min_val),1),np.round(-np.abs(max_val),1))
+        max_val_plot = max(np.round(np.abs(min_val),1),np.round(np.abs(max_val),1))
+        if nc_file == 'da_nb_min_rest_hot_days':
+            min_val_plot=-0.25
+            max_val_plot=0.25
+        for i,model in tqdm(enumerate(model_list_ordered)):
+            da_model = xr.open_dataset(join(read_directory,model,f"mk_{nc_file}_{start_year}_{end_year}.nc"),engine='netcdf4').trend
+            da_slope = da_model.sel(value='slope')*10 # Multiply by 10 to make per decade value
+            ax = axes[i%3][i//3]
+            colmap = 'seismic_r' if 'rest' in nc_file else 'seismic'
+            da_slope.plot(color='lightgray',ax=ax,add_labels=False,transform=proj_pc,add_colorbar=False,zorder=10)
+            img = da_slope.where(da_model.sel(value='ss')==95).plot(cmap=colmap,ax=ax,add_labels=False,transform=proj_pc,vmin=min_val_plot,vmax=max_val_plot,add_colorbar=False,extend='neither',zorder=40)
+            ax.set_extent([-28, 46, 35, 75], crs=proj_pc)
+            ax.set_title(model_name_dict[model],fontsize=12)
+            ax.add_feature(cfeature.COASTLINE,linewidth=0.3,zorder=30)
+            ax.add_feature(cfeature.OCEAN,zorder=20)
+
+            gl = ax.gridlines(crs=proj_pc, linewidth=1, color='black', alpha=0.2, linestyle="--")
+            gl.ylocator = mticker.FixedLocator(np.arange(-90,90,20))
+            gl.xlocator = mticker.FixedLocator(np.arange(-180, 180, 25))
+            gl.set_zorder(50)
+
+            if i%3==2:
+                gl.bottom_labels = True
+            if i<3:
+                gl.left_labels = True
+        #fig.suptitle(f"MK trend in {nc_file[3:].replace('_',' ')}", fontsize=16)
+        levels_ = np.arange(min_val_plot,max_val_plot,0.1)
+        ticks_ = np.append(np.array([np.arange(min_val_plot,0,(max_val_plot-min_val_plot)/3),np.arange(0,max_val_plot,(max_val_plot-min_val_plot)/3)]).flatten(),max_val_plot)
+        
+        norm = clrs.Normalize(vmin=min_val_plot, vmax=max_val_plot)
+        sm = plt.cm.ScalarMappable(cmap=colmap,norm=norm)
+        sm.set_array([])
+        
+        cb = fig.figure.colorbar(sm,ax=axes,boundaries=levels_, #ticks=ticks_,
+                                orientation="horizontal", fraction=0.05, 
+                                pad=0.03, extendfrac='auto',
+                                extend='both', extendrect=True)
+        cb.set_label(label=f"days/decade", fontsize=12)
+        cb.ax.tick_params(labelsize=12)
+
+        fig.text(0.22,0.85,'RCP4.5',fontsize=14)
+        fig.text(0.615,0.85,'RCP8.5',fontsize=14)
+
+        #plt.tight_layout()
+        plt.savefig(join(write_directory,f'trends_{nc_file[3:]}_{start_year}_{end_year}.pdf'),dpi=1200,bbox_inches='tight')
+        plt.savefig(join(write_directory,f'trends_{nc_file[3:]}_{start_year}_{end_year}.png'),bbox_inches='tight')
+        plt.close()
+    da_model.close()
     return
 
 def mk_wrapper(obs,dates,resolution):
@@ -925,7 +1025,7 @@ def merge_heatwaves_dataframes(read_directory,write_directory,start_year_ref=197
     dataframe_summers_path_list = [join(read_directory,subdir,"df_summers.csv") for subdir in dir_list if exists(join(read_directory,subdir,"df_summers.csv"))] # Get all df_summers.csv files, containing heatwaves indices and data
 
     df_global_htws = pd.DataFrame(data=None,columns=['Year','Start Date','End Date','model','original_label','RWL_1','RWL_2','RWL_3','RWL_4',
-    'Intensity','Spatial extent','Accumulated area','Duration','Max','HWMId_sum',
+    'Intensity','Spatial extent','Mean spatial extent','Accumulated area','Duration','Max','HWMId_sum',
     'Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1',
     'Exposed_population_ssp2','HWMId_pop_ssp2','Exposed_population_ssp3','HWMId_pop_ssp3',
     'Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5',
@@ -933,8 +1033,8 @@ def merge_heatwaves_dataframes(read_directory,write_directory,start_year_ref=197
     'Total_exposed_population_ssp3','Total_exposed_population_ssp4','Total_exposed_population_ssp5',
     'GCM','RCM','simulation','version','ensemble','version_date','calendar','bias-adjusted','grid_mapping','temp_file_path'])
     
-    df_global_summers = pd.DataFrame(data=None,columns=['Year','Frequency','Nb hot days','Accumulated area summer','Mean duration','Max duration',
-    'Mean spatial extent', 'Max spatial extent', 'Mean accumulated area', 'Max accumulated area','Mean speed','Max speed','Mean distance','Max distance','temp_file_path'])
+    df_global_summers = pd.DataFrame(data=None,columns=['Year','Frequency','Nb hot days','Accumulated area summer','Mean duration summer','Max duration summer',
+    'Mean spatial extent summer', 'Max spatial extent summer', 'Mean accumulated area summer', 'Max accumulated area summer','Mean speed summer','Max speed summer','Mean distance summer','Max distance summer','temp_file_path'])
 
     for df_path in tqdm(dataframe_path_list):
         df_htws = pd.read_csv(df_path,index_col=0,header=0,parse_dates=["Start Date", "End Date"],date_format="%Y/%m/%d")
@@ -990,6 +1090,7 @@ def remap_labels_for_comparison(read_directory='/scratchu/tmandonnet/CORDEX',wri
                     if overwrite == True or exists(file) == False:
                         makedirs(join(write_directory,model),exist_ok=True)
                         subprocess.call(f"cp {file} {join(write_directory,model,file.split('/')[-1])}",shell=True)
+
 
 def plot_4_panel_hot_days(read_directory,write_directory,start_year=2025,end_year=2099,need_to_compute_labels=False):
     """Plot hot days per location"""
@@ -1527,16 +1628,6 @@ def make_animation_selected_models(read_directory,write_directory,other_data_pat
         dict_hottest_years[model] = worst_year
         animation_hottest_summer(label_directory=join(read_directory,model),temp_file=temp_file_path,other_data_path=other_data_path,write_directory=write_directory,year=worst_year,proj=ccrs.PlateCarree())
 
-    #dict_hottest_years = {'CLMcom_MOHC-HadGEM2-ES_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2091,
-    #'CLMcom_MOHC-HadGEM2-ES_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2091,
-    #'CLMcom_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2062,
-    #'CNRM_CNRM-CERFACS-CNRM-CM5_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2093,
-    #'CNRM_MOHC-HadGEM2-ES_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2093,
-    #'ICTP_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_ICTP-RegCM4-6_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2088,
-    #'KNMI_ICHEC-EC-EARTH_rcp45_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2089,
-    #'KNMI_ICHEC-EC-EARTH_rcp85_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2096,
-    #'SMHI_ICHEC-EC-EARTH_rcp85_r1i1p1_SMHI-RCA4_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512': 2095}
-
     return
 
 def movement_windrose_map(data,ax,write_directory='',var_col_arrows='Duration',var_col_arrows_unit='days',
@@ -1548,8 +1639,6 @@ def movement_windrose_map(data,ax,write_directory='',var_col_arrows='Duration',v
     y1 = np.array([eval(p)[0] for p in data['Centroid_p1']]) # List of first latitudes 
     y2 = np.array([eval(p)[0] for p in data['Centroid_p2']]) # List of second latitudes 
 
-    #fig = plt.figure(figsize=(10,9))   #(21,5):横版
-    #ax = fig.add_subplot(1,1,1, projection=ccrs.PlateCarree()) 
     levels_ = np.arange(4,94,0.1)
     ticks_ = np.arange(4,94,8)
     ax.set_extent([-28, 46, 34, 75], crs=ccrs.PlateCarree())
@@ -1684,9 +1773,9 @@ def compute_mk_trends(read_directory,other_data_path,start_year=1975,end_year=20
     df_summers = df_summers[df_summers['model'].isin(model_list)]
 
     iterables = [
-    ['Frequency','Nb hot days','Accumulated area summer','Relative accumulated area summer (%)','Mean duration','Max duration',
-    'Mean spatial extent', 'Max spatial extent', 'Mean accumulated area', 'Max accumulated area','Mean speed','Max speed','Mean distance','Max distance',
-    'Intensity','Spatial extent','Relative spatial extent (%)','Accumulated area',
+    ['Frequency','Nb hot days','Accumulated area summer','Relative accumulated area summer (%)','Mean duration summer','Max duration summer',
+    'Mean spatial extent summer', 'Max spatial extent summer', 'Mean accumulated area summer', 'Max accumulated area summer','Mean speed summer','Max speed summer','Mean distance summer','Max distance summer',
+    'Intensity','Spatial extent', 'Mean spatial extent','Relative spatial extent (%)','Relative mean spatial extent (%)','Accumulated area',
     'Relative accumulated area (%)','Duration','Max','HWMId_sum',
     'Exposed_population_ssp1_all_period','HWMId_pop_ssp1_all_period',
     'Exposed_population_ssp2_all_period','HWMId_pop_ssp2_all_period','Exposed_population_ssp3_all_period','HWMId_pop_ssp3_all_period',
@@ -1702,9 +1791,9 @@ def compute_mk_trends(read_directory,other_data_path,start_year=1975,end_year=20
 
     df_mk = pd.DataFrame(index=model_list,columns=pd.MultiIndex.from_product(iterables, names=["index", "mk"]),dtype=float)
 
-    index_list = ['Frequency','Nb hot days','Accumulated area summer','Relative accumulated area summer (%)','Mean duration','Max duration',
-    'Mean spatial extent', 'Max spatial extent', 'Mean accumulated area', 'Max accumulated area','Mean speed','Max speed','Mean distance','Max distance',
-    'Intensity','Spatial extent','Relative spatial extent (%)','Accumulated area',
+    index_list = ['Frequency','Nb hot days','Accumulated area summer','Relative accumulated area summer (%)','Mean duration summer','Max duration summer',
+    'Mean spatial extent summer', 'Max spatial extent summer', 'Mean accumulated area summer', 'Max accumulated area summer','Mean speed summer','Max speed summer','Mean distance summer','Max distance summer',
+    'Intensity','Spatial extent','Mean spatial extent','Relative spatial extent (%)','Relative mean spatial extent (%)','Accumulated area',
     'Relative accumulated area (%)','Duration','Max','HWMId_sum',
     'Exposed_population_ssp1_all_period','HWMId_pop_ssp1_all_period',
     'Exposed_population_ssp2_all_period','HWMId_pop_ssp2_all_period','Exposed_population_ssp3_all_period','HWMId_pop_ssp3_all_period',
@@ -1712,21 +1801,21 @@ def compute_mk_trends(read_directory,other_data_path,start_year=1975,end_year=20
     'Total_exposed_population_ssp1_all_period','Total_exposed_population_ssp2_all_period','Total_exposed_population_ssp3_all_period',
     'Total_exposed_population_ssp4_all_period','Total_exposed_population_ssp5_all_period','Distance','Speed']
     # List of coefficients to reduce memory load, suited to the scale of each index
-    index_memory_coeff = {'Frequency':1,'Nb hot days':1,'Accumulated area summer':1e6,'Relative accumulated area summer (%)':1,'Mean duration':1,'Max duration':1,
-    'Mean spatial extent':1e3, 'Max spatial extent':1e3, 'Mean accumulated area':1e6, 'Max accumulated area':1e6,'Mean speed':10,'Max speed':10,'Mean distance':1e2,'Max distance':1e2,
-    'Relative accumulated area (%)':1,'Intensity':1,'Spatial extent':1e3,'Accumulated area':1e6,'Relative spatial extent (%)':1,'Duration':1,'Max':1,'HWMId_sum':1e6,'Exposed_population_ssp1_all_period':1e6,'HWMId_pop_ssp1_all_period':1e6,
-        'Exposed_population_ssp2_all_period':1e6,'HWMId_pop_ssp2_all_period':1e6,'Exposed_population_ssp3_all_period':1e6,'HWMId_pop_ssp3_all_period':1e6,
-        'Exposed_population_ssp4_all_period':1e6,'HWMId_pop_ssp4_all_period':1e6,'Exposed_population_ssp5_all_period':1e6,'HWMId_pop_ssp5_all_period':1e6,
-        'Total_exposed_population_ssp1_all_period':1e6,'Total_exposed_population_ssp2_all_period':1e6,'Total_exposed_population_ssp3_all_period':1e6,
+    index_memory_coeff = {'Frequency':1,'Nb hot days':1,'Accumulated area summer':1e6,'Relative accumulated area summer (%)':1,'Mean duration summer':1,'Max duration summer':1,
+    'Mean spatial extent summer':1e3, 'Max spatial extent summer':1e3, 'Mean accumulated area summer':1e6, 'Max accumulated area summer':1e6,'Mean speed summer':10,'Max speed summer':10,'Mean distance summer':1e2,'Max distance summer':1e2,
+    'Relative accumulated area (%)':1,'Intensity':1,'Spatial extent':1e3,'Mean spatial extent':1e3,'Relative mean spatial extent (%)':1,'Accumulated area':1e6,'Relative spatial extent (%)':1,'Duration':1,'Max':1,'HWMId_sum':1e6,'Exposed_population_ssp1_all_period':1e6,'HWMId_pop_ssp1_all_period':1e6,
+    'Exposed_population_ssp2_all_period':1e6,'HWMId_pop_ssp2_all_period':1e6,'Exposed_population_ssp3_all_period':1e6,'HWMId_pop_ssp3_all_period':1e6,
+    'Exposed_population_ssp4_all_period':1e6,'HWMId_pop_ssp4_all_period':1e6,'Exposed_population_ssp5_all_period':1e6,'HWMId_pop_ssp5_all_period':1e6,
+    'Total_exposed_population_ssp1_all_period':1e6,'Total_exposed_population_ssp2_all_period':1e6,'Total_exposed_population_ssp3_all_period':1e6,
     'Total_exposed_population_ssp4_all_period':1e6,'Total_exposed_population_ssp5_all_period':1e6,'Distance':1e2,'Speed':10}
 
     # Compute MK trend test for 'Frequency','Nb hot days','Accumulated area summer'
     count_fail=0
-    res_dict = {'Frequency':0.9,'Nb hot days':0.9,'Accumulated area summer':0.01,'Relative accumulated area summer (%)':0.01,'Mean duration':0.01,'Max duration':0.9,
-    'Mean spatial extent':0.01, 'Max spatial extent':0.01, 'Mean accumulated area':0.01, 'Max accumulated area':0.01,'Mean speed':0.01,'Max speed':0.01,'Mean distance':0.01,'Max distance':0.01}
+    res_dict = {'Frequency':0.9,'Nb hot days':0.9,'Accumulated area summer':0.01,'Relative accumulated area summer (%)':0.01,'Mean duration summer':0.01,'Max duration summer':0.9,
+    'Mean spatial extent summer':0.01, 'Max spatial extent summer':0.01, 'Mean accumulated area summer':0.01, 'Max accumulated area summer':0.01,'Mean speed summer':0.01,'Max speed summer':0.01,'Mean distance summer':0.01,'Max distance summer':0.01}
     
-    for index in ['Frequency','Nb hot days','Accumulated area summer','Relative accumulated area summer (%)','Mean duration','Max duration',
-    'Mean spatial extent', 'Max spatial extent', 'Mean accumulated area', 'Max accumulated area','Mean speed','Max speed','Mean distance','Max distance']:
+    for index in ['Frequency','Nb hot days','Accumulated area summer','Relative accumulated area summer (%)','Mean duration summer','Max duration summer',
+    'Mean spatial extent summer', 'Max spatial extent summer', 'Mean accumulated area summer', 'Max accumulated area summer','Mean speed summer','Max speed summer','Mean distance summer','Max distance summer']:
         print(index)
         for model in tqdm(df_mk.index):
             sub_df = df_summers[df_summers['model']==model]
@@ -1775,7 +1864,7 @@ def plot_RWL_figures(read_directory,write_directory,regional_warming_levels_list
     reference_htws = reference_htws.loc[[26,91,191],:] # 26: 1987 Greece, 91: 2003 Europe, 120: 2010 Russia, 191: 2022 Europe
     reference_htws['label'] = reference_htws['Year']
 
-    log_indices = ['Spatial extent','Accumulated area','HWMId_sum','Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2',
+    log_indices = ['Spatial extent','Mean spatial extent','Accumulated area','HWMId_sum','Exposed_population_ghs','HWMId_pop_ghs','Exposed_population_ssp1','HWMId_pop_ssp1','Exposed_population_ssp2','HWMId_pop_ssp2',
     'Exposed_population_ssp3','HWMId_pop_ssp3','Exposed_population_ssp4','HWMId_pop_ssp4','Exposed_population_ssp5','HWMId_pop_ssp5']
 
     for index in log_indices :
