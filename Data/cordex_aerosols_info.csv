@@ -1,0 +1,13 @@
+model,aerosol_type,note
+CLMcom-CCLM4-8-17,CAS,No seasonal cycle and no trends (Gutierrez 2020)
+CLMcom-ETH-COSMO-crCLIM-v1-1,EAS,Monthly mean values for the base year 2000 (Gutierrez 2020)
+CNRM-ALADIN63,EAS,Seasonal cycle for each class and trend for SU and OC and BC following HIST runs  (no trend for SD and SS) (Gutierrez 2020)
+DMI-HIRHAM5,CAS,No temporal evolution (Gutierrez 2020)
+GERICS-REMO2015,CAS,No seasonal cycle and no trends (Gutierrez 2020)
+ICTP-RegCM4-6,CAS,Aerosols are not included (Gutierrez 2020)
+IPSL-WRF381P,CAS,Constant in time (Gutierrez 2020)
+KNMI-RACMO22E,EAS,Monthly variations and decadal trends (Gutierrez 2020)
+MOHC-HadREM3-GA7-05,EAS,No information so we follow Belin et al (2026)
+MPI-CSC-REMO2009,CAS,No seasonal cycle and no trends (Gutierrez 2020)
+SMHI-RCA4,CAS,Constant in time (Gutierrez 2020)
+UHOH-WRF361H,EAS,Monthly variations (Gutierrez 2020)
