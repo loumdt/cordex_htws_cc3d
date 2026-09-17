@@ -27,8 +27,10 @@ UNITS = {
     "Intensity": "°C",
     "Spatial extent": "km²",
     "Duration": "Days",
-    "HWMId_pop_ssp1_all_period": "IQR-persons",
-    "HWMId_pop": "IQR-persons",
+    "HWMId_pop_ssp1_all_period": "HWMId_pop (IQR-persons)",
+    "HWMId_pop": "HWMId_pop (IQR-persons)",
+    "Total_exposed_population_ssp1_all_period": "Exposed population (person-days)",
+    "Total_exposed_population": "Exposed population (person-days)",
 }
 
 

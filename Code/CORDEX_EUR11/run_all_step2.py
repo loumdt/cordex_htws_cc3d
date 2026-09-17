@@ -69,7 +69,7 @@ if __name__ == "__main__":
     if overwrite_files or exists(join(write_directory,f'trends_nb_mean_rest_hot_days_{end_year_ref+1}_{end_year}.pdf'))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running plot_grid_point_trends...")
-        plot_grid_point_trends(read_directory,write_directory,start_year=end_year_ref+1,end_year=end_year)
+        #plot_grid_point_trends(read_directory,write_directory,start_year=end_year_ref+1,end_year=end_year)
         print("Done.")
     if overwrite_files or exists(join(write_directory,'hot_days_4_panels_raw_models.pdf'))==False:
         print("--- %.0f seconds ---" % (time.time() - start_time))
@@ -105,5 +105,10 @@ if __name__ == "__main__":
         print("--- %.0f seconds ---" % (time.time() - start_time))
         print("Running plot_comparison_reanalysis_figures...")
         #plot_comparison_reanalysis_figures(read_directory,write_directory)
+        print("Done.")
+    if overwrite_files or exists(join(write_directory,"RWL_years_reached.pdf"))==False:
+        print("--- %.0f seconds ---" % (time.time() - start_time))
+        print("Running plot_comparison_reanalysis_figures...")
+        plot_RWL_years(write_directory=write_directory,start_year=start_year,end_year=end_year,regional_warming_levels_list=regional_warming_levels_list)
         print("Done.")
     print("--- %.0f hours and %.0f minutes ---" % ((time.time() - start_time)//3600 , (time.time() - start_time)%3600//60))

@@ -434,6 +434,7 @@ def compute_regional_warming_levels(read_directory_historical,read_directory_rcp
     with open(join(write_directory,'regional_warming_levels.json'), 'w') as fp:
         json.dump(warming_levels_dict, fp)
 
+    da_weighted.to_netcdf(join(write_directory,f'annual_tas_mean_{start_year}_{end_year}.nc'))
     return
 
 #%%
@@ -774,6 +775,62 @@ def mylog(x):
         res = np.nan
     return res
 
+def plot_RWL_years(write_directory,start_year=1975,end_year=2099,ref_period_offset=0.72,regional_warming_levels_list=[2.1,2.6,4.0,5.1]):
+    model_name_dict = {
+    'CLMcom_MOHC-HadGEM2-ES_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'A45',
+    'CLMcom_MOHC-HadGEM2-ES_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'A85',
+    'CLMcom_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'B45',
+    'CLMcom_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'B85',
+    'CNRM_CNRM-CERFACS-CNRM-CM5_rcp45_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'D45',
+    'CNRM_CNRM-CERFACS-CNRM-CM5_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'D85',
+    'CNRM_MOHC-HadGEM2-ES_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'C85',
+    'DMI_NCC-NorESM1-M_rcp45_r1i1p1_DMI-HIRHAM5_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'E45',
+    'DMI_NCC-NorESM1-M_rcp85_r1i1p1_DMI-HIRHAM5_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'E85',
+    'GERICS_NCC-NorESM1-M_rcp45_r1i1p1_GERICS-REMO2015_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'F45',
+    'GERICS_NCC-NorESM1-M_rcp85_r1i1p1_GERICS-REMO2015_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'F85',
+    'ICTP_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_ICTP-RegCM4-6_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'G85',
+    'KNMI_ICHEC-EC-EARTH_rcp45_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'H45',
+    'KNMI_ICHEC-EC-EARTH_rcp85_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'H85',
+    'MOHC_ICHEC-EC-EARTH_rcp85_r12i1p1_MOHC-HadREM3-GA7-05_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'I85',
+    'MPI-CSC_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_MPI-CSC-REMO2009_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'J45',
+    'MPI-CSC_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_MPI-CSC-REMO2009_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'J85',
+    'SMHI_ICHEC-EC-EARTH_rcp85_r1i1p1_SMHI-RCA4_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'K85',
+    }
+    
+    df_results = pd.read_csv(join(write_directory,'df_htws_BC_results.csv'),header=0,index_col=0)
+    model_list = df_results['model'].unique()
+    model_list = model_list[model_list!='ERA5']
+    fig, axes = plt.subplots(3,1,figsize=(12,10),gridspec_kw={'hspace':0.4,'wspace':0.1})
+    col_list = ["#E8AE68", "#FA9500", "#B22222","#9D1E1E"]
+    for model in model_list:
+        with open(join(write_directory,'..',model,'regional_warming_levels.json'), 'r') as f:
+            RWL_dict = json.load(f)
+        da = xr.open_dataarray(join(write_directory,'..',model,f'annual_tas_mean_{start_year}_{end_year}.nc'),engine='netcdf4')
+        for i in range(3):
+            rwl = regional_warming_levels_list[i]
+            axes[i].plot(range(1975,2100),da.data+ref_period_offset,linewidth=0.5,label=model_name_dict[model])
+            try:
+                axes[i].axvline(x=RWL_dict[str(rwl)]["start_year"]+9,linestyle='--',linewidth=1,color=col_list[i])
+            except:
+                if RWL_dict[str(rwl)] is None:
+                    pass
+                else:
+                    raise ValueError("Unable to plot axvline but start year of RWL is not None.")
+    leg = axes[2].legend(loc='lower left')
+    # set the linewidth of each legend object
+    for legobj in leg.legend_handles:
+        legobj.set_linewidth(2.0)
+    for i in range(3):
+        axes[i].axhline(y=regional_warming_levels_list[i],linestyle='-',linewidth=1,color=col_list[i])
+        axes[i].set_xlim([2000,2090])
+        axes[i].set_xlabel("Year")
+        axes[i].set_ylabel("Warming level w.r.t. PI era")
+        axes[i].set_title(f"RWL +{regional_warming_levels_list[i]}°C")
+    plt.savefig(join(write_directory,'RWL_years_reached.png'),bbox_inches='tight')
+    plt.savefig(join(write_directory,'RWL_years_reached.pdf'),bbox_inches='tight',dpi=1600)
+    plt.close()       
+    return
+
 def compute_grid_points_stats(write_directory,start_year=1975,end_year=2099,start_year_ref=1975,end_year_ref=2025,compute_trends=False):
     for i,year in tqdm(enumerate(range(start_year,end_year+1))):
         da_label = xr.open_dataset(join(write_directory,f"labels_cc3d_year_{year}_ref_{start_year_ref}_{end_year_ref}.nc"),engine='netcdf4').label
@@ -1017,6 +1074,91 @@ def mk_wrapper(obs,dates,resolution):
     )
     res = res[1]
     return res['p'], res['ss'], res['slope'], res['lcl'], res['ucl']
+
+def plot_grid_point_HW_days_end_century(read_directory,write_directory,other_data_path):
+    df_htws_BC_results = pd.read_csv(join(write_directory,'df_htws_BC_results.csv'),header=0,index_col=0)
+    df_ERA5 = df_htws_BC_results[df_htws_BC_results['model']=='ERA5']
+    df_htws_BC_results = df_htws_BC_results[df_htws_BC_results['model']!='ERA5']
+    model_list = np.unique(df_htws_BC_results['model'])
+
+    model_name_dict = {
+    'CLMcom_MOHC-HadGEM2-ES_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'A45',
+    'CLMcom_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'B45',
+    'CNRM_CNRM-CERFACS-CNRM-CM5_rcp45_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'D45',
+    'DMI_NCC-NorESM1-M_rcp45_r1i1p1_DMI-HIRHAM5_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'E45',
+    'GERICS_NCC-NorESM1-M_rcp45_r1i1p1_GERICS-REMO2015_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'F45',
+    'KNMI_ICHEC-EC-EARTH_rcp45_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'H45',
+    'MPI-CSC_MPI-M-MPI-ESM-LR_rcp45_r1i1p1_MPI-CSC-REMO2009_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'J45',
+    'CLMcom_MOHC-HadGEM2-ES_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'A85',
+    'CLMcom_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_CLMcom-CCLM4-8-17_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'B85',
+    'CNRM_MOHC-HadGEM2-ES_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'C85',
+    'CNRM_CNRM-CERFACS-CNRM-CM5_rcp85_r1i1p1_CNRM-ALADIN63_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'D85',
+    'DMI_NCC-NorESM1-M_rcp85_r1i1p1_DMI-HIRHAM5_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'E85',
+    'GERICS_NCC-NorESM1-M_rcp85_r1i1p1_GERICS-REMO2015_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'F85',
+    'ICTP_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_ICTP-RegCM4-6_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'G85',
+    'KNMI_ICHEC-EC-EARTH_rcp85_r1i1p1_KNMI-RACMO22E_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'H85',
+    'MOHC_ICHEC-EC-EARTH_rcp85_r12i1p1_MOHC-HadREM3-GA7-05_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'I85',
+    'MPI-CSC_MPI-M-MPI-ESM-LR_rcp85_r1i1p1_MPI-CSC-REMO2009_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'J85',
+    'SMHI_ICHEC-EC-EARTH_rcp85_r1i1p1_SMHI-RCA4_SBCK-CDFt-ERA5-1976-2005_day_tasmaxAdjust_v20260512':'K85',
+    }
+
+    model_list_ordered = [mod for mod in model_name_dict.keys() if mod in model_list]
+
+    proj_pc = ccrs.PlateCarree()
+
+    fig,axes = plt.subplots(3,3,figsize=(12,10),subplot_kw={'projection':proj_pc},gridspec_kw={'hspace':0.02,'wspace':0.1})
+    min_val_plot = 0
+    max_val_plot = 90
+
+    da_mask = xr.open_dataset(join(other_data_path,'mask','mask_Europe_land_only_CORDEX_EUR11_ERA5.nc'),engine='netcdf4').mask
+    levels_ = np.arange(min_val_plot,max_val_plot,9)
+
+    for i,model in tqdm(enumerate(model_list_ordered)):
+        labels_files = np.sort(glob.glob(join(read_directory,model,'labels_cc3d_year_209[0-9]_ref_1975_2025.nc')))
+        da_model = xr.open_mfdataset(labels_files,engine='netcdf4').label
+        da_avg = ((da_model>0).sum(dim='time')/10).compute() # Compute average number of HW days per year in the 2090-2099 period
+        da_avg = da_avg.where(da_mask.data==0)        
+
+        ax = axes[i%3][i//3]
+        img = da_avg.plot.contourf(cmap='YlOrRd',ax=ax,add_labels=False,transform=proj_pc,vmin=min_val_plot,vmax=max_val_plot,levels=10,add_colorbar=False,extend='neither',zorder=40)
+        ax.set_extent([-28, 46, 35, 75], crs=proj_pc)
+        ax.set_title(model_name_dict[model],fontsize=12)
+        ax.add_feature(cfeature.COASTLINE,linewidth=0.3,zorder=30)
+        ax.add_feature(cfeature.OCEAN,zorder=20)
+
+        gl = ax.gridlines(crs=proj_pc, linewidth=1, color='black', alpha=0.2, linestyle="--")
+        gl.ylocator = mticker.FixedLocator(np.arange(-90,90,20))
+        gl.xlocator = mticker.FixedLocator(np.arange(-180, 180, 25))
+        gl.set_zorder(50)
+
+        if i%3==2:
+            gl.bottom_labels = True
+        if i<3:
+            gl.left_labels = True
+    #fig.suptitle(f"MK trend in {nc_file[3:].replace('_',' ')}", fontsize=16)
+    
+    #ticks_ = np.array([0,15,30,45,60,75,90])
+    
+    norm = clrs.Normalize(vmin=min_val_plot, vmax=max_val_plot)
+    sm = plt.cm.ScalarMappable(cmap='YlOrRd',norm=norm)
+    sm.set_array([])
+    
+    cb = fig.figure.colorbar(sm,ax=axes,boundaries=levels_, #ticks=ticks_,
+                            orientation="horizontal", fraction=0.05, 
+                            pad=0.03, extendfrac='auto',
+                            extend='both', extendrect=True)
+    cb.set_label(label=f"heatwave days", fontsize=12)
+    cb.ax.tick_params(labelsize=12)
+
+    fig.text(0.22,0.85,'RCP4.5',fontsize=14)
+    fig.text(0.615,0.85,'RCP8.5',fontsize=14)
+
+    #plt.tight_layout()
+    plt.savefig(join(write_directory,f'avg_HW_days_end_century.pdf'),dpi=1200,bbox_inches='tight')
+    plt.savefig(join(write_directory,f'avg_HW_days_end_century.png'),bbox_inches='tight')
+    plt.close()
+    da_model.close()
+    return
 
 def merge_heatwaves_dataframes(read_directory,write_directory,start_year_ref=1975,end_year_ref=2025,regional_warming_levels_list=[2.1,2.6,4.0,5.1]):
     dir_list = [item for item in listdir(read_directory) if isdir(join(read_directory,item))] # List all subdirectories
