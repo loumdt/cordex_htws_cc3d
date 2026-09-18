@@ -4,4 +4,4 @@
 #SBATCH --mem=8G
 
 source /home/tmandonnet/.dev_cordex3_12/bin/activate
-python3 /home/tmandonnet/CORDEX/run_all_step1.py $1 $2 $3 $4 $5 $6
+python3 /home/tmandonnet/CORDEX/run_all_step1_BC.py $1 $2 $3 $4 $5 $6

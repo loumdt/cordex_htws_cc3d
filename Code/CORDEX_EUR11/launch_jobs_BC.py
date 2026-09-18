@@ -10,7 +10,7 @@ def json_loads_dictionary(json_array_having_key_and_value_as_keys):
         dict_having_tuple_as_key[ tuple(dict_having_key_and_value_as_keys['key']) ] = dict_having_key_and_value_as_keys['value']
     return dict_having_tuple_as_key
 
-choice = 'CORDEX' #'CORDEX' or 'CORDEX_ADJUST'
+choice = 'CORDEX_ADJUST' #'CORDEX' or 'CORDEX_ADJUST'
 
 with open(f'/home/tmandonnet/CORDEX/{choice}_pairs_path_dict.json', 'r') as f:
     data = json.load(f)
@@ -18,4 +18,5 @@ with open(f'/home/tmandonnet/CORDEX/{choice}_pairs_path_dict.json', 'r') as f:
 loaded_dict = json_loads_dictionary(data)
 
 for k,v in loaded_dict.items() :
-    os.system(f"sbatch cordex_job.sh {k[0]} {k[1]} {k[2]} {k[3]} {v['historical']} {v['rcp']}")
+    print(v['rcp'])
+    os.system(f"sbatch cordex_job_BC.sh {k[0]} {k[1]} {k[2]} {k[3]} {v['historical']} {v['rcp']}")  
